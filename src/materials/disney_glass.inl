@@ -66,8 +66,12 @@ Spectrum eval_op::operator()(const DisneyGlass &bsdf) const {
         Real sqrt_denom = h_dot_in + eta * h_dot_out;
         // Very complicated BSDF. See Walter et al.'s paper for more details.
         // "Microfacet Models for Refraction through Rough Surfaces"
-        return base_color * (eta_factor * (1 - F) * D * G * eta * eta * fabs(h_dot_out * h_dot_in)) / 
-            (fabs(dot(frame.n, dir_in)) * sqrt_denom * sqrt_denom);
+        
+        return sqrt(base_color) * (Real(1) - F) * D * G * fabs(h_dot_out * h_dot_in) / 
+            (fabs(dot(frame.n, dir_in)) * pow(h_dot_in + eta * h_dot_out, 2));
+        
+        // return base_color * (eta_factor * (1 - F) * D * G * eta * eta * fabs(h_dot_out * h_dot_in)) / 
+        //     (fabs(dot(frame.n, dir_in)) * sqrt_denom * sqrt_denom);
     }
 }
 
