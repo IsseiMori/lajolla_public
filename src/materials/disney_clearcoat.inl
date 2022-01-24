@@ -85,8 +85,23 @@ std::optional<BSDFSampleRecord>
     }
     // Homework 1: implement this!
 
+    Real clearcoat_gloss = eval(bsdf.clearcoat_gloss, vertex.uv, vertex.uv_screen_size, texture_pool);
+    
+    Real alpha = (Real(1) - clearcoat_gloss) * Real(0.1) + 
+                 clearcoat_gloss * Real(0.001);
+    Real alpha2 = alpha * alpha;
+
+    Real cos_h_elevation = sqrt((Real(1) - pow(alpha2, Real(1) - rnd_param_uv[0])) / (Real(1) - alpha2));
+    Real h_elevation = acos(cos_h_elevation);
+    Real h_azimuth = Real(2) * c_PI * rnd_param_uv[1];
+    Real hlx = sin(h_elevation) * cos(h_azimuth);
+    Real hly = sin(h_elevation) * sin(h_azimuth);
+    Real hlz = cos(h_elevation);
+    Vector3 h = Vector3(hlx, hly, hlz);
+    Vector3 hemi_N = to_world(h, dir_in);
+
     return BSDFSampleRecord{
-        to_world(frame, sample_cos_hemisphere(rnd_param_uv)),
+        hemi_N,
         Real(0) /* eta */, Real(1) /* roughness */};
 }
 
