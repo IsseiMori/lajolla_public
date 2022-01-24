@@ -81,7 +81,6 @@ Real pdf_sample_bsdf_op::operator()(const DisneyMetal &bsdf) const {
     Vector3 h = normalize(dir_in + dir_out); // half vector
     Vector3 n = frame.n;
     Real NdotIn = fabs(dot(n, dir_in));
-    Real NdotOut = fabs(dot(n, dir_out));
 
     // Compute Dm
     Real aspect = sqrt(Real(1) - Real(0.9) * anisotropic);
