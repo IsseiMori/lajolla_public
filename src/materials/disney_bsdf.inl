@@ -15,6 +15,8 @@ Spectrum eval_op::operator()(const DisneyBSDF &bsdf) const {
     Real specular_transmission = eval(bsdf.specular_transmission, vertex.uv, vertex.uv_screen_size, texture_pool);
     Real metallic = eval(bsdf.metallic, vertex.uv, vertex.uv_screen_size, texture_pool);
     Real subsurface = eval(bsdf.subsurface, vertex.uv, vertex.uv_screen_size, texture_pool);
+    Real specular = eval(bsdf.specular, vertex.uv, vertex.uv_screen_size, texture_pool);
+    Real specular_tint = eval(bsdf.specular_tint, vertex.uv, vertex.uv_screen_size, texture_pool);
     Real roughness = eval(bsdf.roughness, vertex.uv, vertex.uv_screen_size, texture_pool);
     Real anisotropic = eval(bsdf.anisotropic, vertex.uv, vertex.uv_screen_size, texture_pool);
     Real sheen_tint = eval(bsdf.sheen_tint, vertex.uv, vertex.uv_screen_size, texture_pool);
@@ -60,9 +62,19 @@ Spectrum eval_op::operator()(const DisneyBSDF &bsdf) const {
         Real NdotIn = fabs(dot(n, dir_in));
         Real NdotOut = fabs(dot(n, dir_out));
 
+        Real eta = dot(vertex.geometry_normal, dir_in) > 0 ? bsdf.eta : 1 / bsdf.eta;
+
         // Compute F
-        Spectrum Fm = base_color + (Real(1) - base_color)
-                    * pow(Real(1) - fabs(dot(h, dir_out)), 5);
+        // Spectrum Fm = base_color + (Real(1) - base_color)
+        //             * pow(Real(1) - fabs(dot(h, dir_out)), 5);
+        
+        // Include an achromatic specular component
+        Spectrum C_tint = base_color / luminance(base_color);
+        if ( luminance(base_color) <= 0 ) C_tint = make_const_spectrum(Real(1));
+
+        Spectrum Ks = (Real(1) - specular_tint) + specular_tint * C_tint;
+        Spectrum C0 = specular * eta * (Real(1) - metallic) * Ks + metallic * base_color;
+        Spectrum Fm = C0 + (Real(1) - C0) * pow(Real(1) - fabs(dot(h, dir_out)), 5);
 
         // Compute Dm
         Real aspect = sqrt(Real(1) - Real(0.9) * anisotropic);
@@ -179,13 +191,17 @@ Real pdf_sample_bsdf_op::operator()(const DisneyBSDF &bsdf) const {
     Real eta = dot(vertex.geometry_normal, dir_in) > 0 ? bsdf.eta : 1 / bsdf.eta;
     roughness = std::clamp(roughness, Real(0.01), Real(1));
 
-
-
     
     Real diffuse_weight = (Real(1) - metallic) * (Real(1) - specular_transmission);
     Real metal_weight = (Real(1) - specular_transmission * (Real(1) - metallic));
     Real glass_weight = (Real(1) - metallic) * specular_transmission;
     Real clearcoat_weight = Real(0.25) * clearcoat;
+
+    if ( dot(vertex.geometry_normal, dir_in) <= 0 ) {
+        diffuse_weight = 0;
+        metal_weight = 0;
+        clearcoat_weight = 0;
+    }
 
     Real weight_total = diffuse_weight + metal_weight + glass_weight + clearcoat_weight;
     diffuse_weight /= weight_total;
@@ -301,6 +317,12 @@ std::optional<BSDFSampleRecord>
     Real metal_weight = (Real(1) - specular_transmission * (Real(1) - metallic));
     Real glass_weight = (Real(1) - metallic) * specular_transmission;
     Real clearcoat_weight = Real(0.25) * clearcoat;
+
+    if ( dot(vertex.geometry_normal, dir_in) <= 0 ) {
+        diffuse_weight = 0;
+        metal_weight = 0;
+        clearcoat_weight = 0;
+    }
 
     Real weight_total = diffuse_weight + metal_weight + glass_weight + clearcoat_weight;
     diffuse_weight /= weight_total;
