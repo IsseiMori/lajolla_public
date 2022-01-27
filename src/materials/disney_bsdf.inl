@@ -57,12 +57,9 @@ Spectrum eval_op::operator()(const DisneyBSDF &bsdf) const {
     /*-------------------- Metal --------------------*/
     {
         // Pre-compute reusable general terms
-        Vector3 h = normalize(dir_in + dir_out); // half vector
-        Vector3 n = frame.n;
-        Real NdotIn = fabs(dot(n, dir_in));
-        Real NdotOut = fabs(dot(n, dir_out));
-
-        Real eta = dot(vertex.geometry_normal, dir_in) > 0 ? bsdf.eta : 1 / bsdf.eta;
+        Vector3 half_vector = normalize(dir_in + dir_out);
+        Real h_dot_in = dot(half_vector, dir_in);
+        Real h_dot_out = dot(half_vector, dir_out);
 
         // Compute F
         // Spectrum Fm = base_color + (Real(1) - base_color)
@@ -72,22 +69,25 @@ Spectrum eval_op::operator()(const DisneyBSDF &bsdf) const {
         Spectrum C_tint = base_color / luminance(base_color);
         if ( luminance(base_color) <= 0 ) C_tint = make_const_spectrum(Real(1));
 
+        Real eta = Real(1.5);
+        Real R_0 = pow(eta - Real(1), 2) / pow(eta + Real(1), 2);
+
         Spectrum Ks = (Real(1) - specular_tint) + specular_tint * C_tint;
-        Spectrum C0 = specular * eta * (Real(1) - metallic) * Ks + metallic * base_color;
-        Spectrum Fm = C0 + (Real(1) - C0) * pow(Real(1) - fabs(dot(h, dir_out)), 5);
+        Spectrum C0 = specular * R_0 * (Real(1) - metallic) * Ks + metallic * base_color;
+        Spectrum Fm = C0 + (Real(1) - C0) * pow(Real(1) - fabs(h_dot_out), 5);
 
         // Compute Dm
         Real aspect = sqrt(Real(1) - Real(0.9) * anisotropic);
         Real a_min = Real(0.0001);
         Real ax = fmax(a_min, roughness * roughness / aspect);
         Real ay = fmax(a_min, roughness * roughness * aspect);
-        Real Dm = GTR2_aniso(ax, ay, frame, h);
+        Real Dm = GTR2_aniso(ax, ay, frame, half_vector);
 
         // Compute G
-        Real Gin = smithG_GGX_aniso(NdotIn, dot(dir_in, frame.x), dot(dir_in, frame.y), ax, ay);
-        Real Gout = smithG_GGX_aniso(NdotOut, dot(dir_out, frame.x), dot(dir_out, frame.y), ax, ay);
+        Real Gin = smithG_GGX_aniso(dot(dir_in, frame.n), dot(dir_in, frame.x), dot(dir_in, frame.y), ax, ay);
+        Real Gout = smithG_GGX_aniso(dot(dir_in, frame.n), dot(dir_out, frame.x), dot(dir_out, frame.y), ax, ay);
 
-        f_metal = Fm * Dm * Gin * Gout / (Real(4) * fabs(dot(n, dir_in)));
+        f_metal = Fm * Dm * Gin * Gout / (Real(4) * fabs(dot(dir_in, frame.n)));
     }
 
 
@@ -203,11 +203,17 @@ Real pdf_sample_bsdf_op::operator()(const DisneyBSDF &bsdf) const {
         clearcoat_weight = 0;
     }
 
+    // diffuse_weight = 1;
+    // metal_weight = 0;
+    // clearcoat_weight = 0;
+    // glass_weight = 0;
+
     Real weight_total = diffuse_weight + metal_weight + glass_weight + clearcoat_weight;
     diffuse_weight /= weight_total;
     metal_weight /= weight_total;
     glass_weight /= weight_total;
     clearcoat_weight /= weight_total;
+    
 
 
     Real sum_pdf = Real(0);
@@ -222,21 +228,21 @@ Real pdf_sample_bsdf_op::operator()(const DisneyBSDF &bsdf) const {
     /*-------------------- Metal --------------------*/
     {
         // Pre-compute reusable general terms
-        Vector3 h = normalize(dir_in + dir_out); // half vector
-        Vector3 n = frame.n;
-        Real NdotIn = fabs(dot(n, dir_in));
+    Vector3 half_vector = normalize(dir_in + dir_out);
+    Real h_dot_in = dot(half_vector, dir_in);
+    Real h_dot_out = dot(half_vector, dir_out);
 
-        // Compute Dm
-        Real aspect = sqrt(Real(1) - Real(0.9) * anisotropic);
-        Real a_min = Real(0.0001);
-        Real ax = fmax(a_min, roughness * roughness / aspect);
-        Real ay = fmax(a_min, roughness * roughness * aspect);
-        Real Dm = GTR2_aniso(ax, ay, frame, h);
+    // Compute Dm
+    Real aspect = sqrt(Real(1) - Real(0.9) * anisotropic);
+    Real a_min = Real(0.0001);
+    Real ax = fmax(a_min, roughness * roughness / aspect);
+    Real ay = fmax(a_min, roughness * roughness * aspect);
+    Real Dm = GTR2_aniso(ax, ay, frame, half_vector);
 
-        // Compute G
-        Real Gin = smithG_GGX_aniso(NdotIn, dot(dir_in, frame.x), dot(dir_in, frame.y), ax, ay);
+    // Compute G
+    Real Gin = smithG_GGX_aniso(dot(dir_in, frame.n), dot(dir_in, frame.x), dot(dir_in, frame.y), ax, ay);
 
-        sum_pdf +=  metal_weight * Dm * Gin / (Real(4) * fabs(dot(n, dir_in)));
+        sum_pdf +=  metal_weight * Dm * Gin / (Real(4) * fabs(dot(dir_in, frame.n)));
     }
 
 
@@ -324,13 +330,18 @@ std::optional<BSDFSampleRecord>
         clearcoat_weight = 0;
     }
 
+    // diffuse_weight = 1;
+    // metal_weight = 0;
+    // clearcoat_weight = 0;
+    // glass_weight = 0;
+
     Real weight_total = diffuse_weight + metal_weight + glass_weight + clearcoat_weight;
     diffuse_weight /= weight_total;
     metal_weight /= weight_total;
     glass_weight /= weight_total;
     clearcoat_weight /= weight_total;
 
-    Real rand = rnd_param_uv[0];
+    Real rand = rnd_param_w;
 
     if ( rand < diffuse_weight ) {
 
