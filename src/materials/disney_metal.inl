@@ -69,7 +69,6 @@ Spectrum eval_op::operator()(const DisneyMetal &bsdf) const {
 
     // Pre-compute reusable general terms
     Vector3 half_vector = normalize(dir_in + dir_out);
-    Real h_dot_in = dot(half_vector, dir_in);
     Real h_dot_out = dot(half_vector, dir_out);
 
     // Compute F
@@ -109,8 +108,6 @@ Real pdf_sample_bsdf_op::operator()(const DisneyMetal &bsdf) const {
 
     // Pre-compute reusable general terms
     Vector3 half_vector = normalize(dir_in + dir_out);
-    Real h_dot_in = dot(half_vector, dir_in);
-    Real h_dot_out = dot(half_vector, dir_out);
 
     // Compute Dm
     Real aspect = sqrt(Real(1) - Real(0.9) * anisotropic);

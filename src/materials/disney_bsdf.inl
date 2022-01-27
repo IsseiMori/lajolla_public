@@ -58,12 +58,11 @@ Spectrum eval_op::operator()(const DisneyBSDF &bsdf) const {
     {
         // Pre-compute reusable general terms
         Vector3 half_vector = normalize(dir_in + dir_out);
-        Real h_dot_in = dot(half_vector, dir_in);
         Real h_dot_out = dot(half_vector, dir_out);
 
         // Compute F
         // Spectrum Fm = base_color + (Real(1) - base_color)
-        //             * pow(Real(1) - fabs(dot(h, dir_out)), 5);
+        //             * pow(Real(1) - fabs(h_dot_out), 5);
         
         // Include an achromatic specular component
         Spectrum C_tint = base_color / luminance(base_color);
@@ -85,7 +84,7 @@ Spectrum eval_op::operator()(const DisneyBSDF &bsdf) const {
 
         // Compute G
         Real Gin = smithG_GGX_aniso(dot(dir_in, frame.n), dot(dir_in, frame.x), dot(dir_in, frame.y), ax, ay);
-        Real Gout = smithG_GGX_aniso(dot(dir_in, frame.n), dot(dir_out, frame.x), dot(dir_out, frame.y), ax, ay);
+        Real Gout = smithG_GGX_aniso(dot(dir_out, frame.n), dot(dir_out, frame.x), dot(dir_out, frame.y), ax, ay);
 
         f_metal = Fm * Dm * Gin * Gout / (Real(4) * fabs(dot(dir_in, frame.n)));
     }
@@ -228,20 +227,17 @@ Real pdf_sample_bsdf_op::operator()(const DisneyBSDF &bsdf) const {
     /*-------------------- Metal --------------------*/
     {
         // Pre-compute reusable general terms
-    Vector3 half_vector = normalize(dir_in + dir_out);
-    Real h_dot_in = dot(half_vector, dir_in);
-    Real h_dot_out = dot(half_vector, dir_out);
+        Vector3 half_vector = normalize(dir_in + dir_out);
 
-    // Compute Dm
-    Real aspect = sqrt(Real(1) - Real(0.9) * anisotropic);
-    Real a_min = Real(0.0001);
-    Real ax = fmax(a_min, roughness * roughness / aspect);
-    Real ay = fmax(a_min, roughness * roughness * aspect);
-    Real Dm = GTR2_aniso(ax, ay, frame, half_vector);
+        // Compute Dm
+        Real aspect = sqrt(Real(1) - Real(0.9) * anisotropic);
+        Real a_min = Real(0.0001);
+        Real ax = fmax(a_min, roughness * roughness / aspect);
+        Real ay = fmax(a_min, roughness * roughness * aspect);
+        Real Dm = GTR2_aniso(ax, ay, frame, half_vector);
 
-    // Compute G
-    Real Gin = smithG_GGX_aniso(dot(dir_in, frame.n), dot(dir_in, frame.x), dot(dir_in, frame.y), ax, ay);
-
+        // Compute G
+        Real Gin = smithG_GGX_aniso(dot(dir_in, frame.n), dot(dir_in, frame.x), dot(dir_in, frame.y), ax, ay);
         sum_pdf +=  metal_weight * Dm * Gin / (Real(4) * fabs(dot(dir_in, frame.n)));
     }
 
@@ -313,6 +309,7 @@ std::optional<BSDFSampleRecord>
 
     Real specular_transmission = eval(bsdf.specular_transmission, vertex.uv, vertex.uv_screen_size, texture_pool);
     Real metallic = eval(bsdf.metallic, vertex.uv, vertex.uv_screen_size, texture_pool);
+    Real anisotropic = eval(bsdf.anisotropic, vertex.uv, vertex.uv_screen_size, texture_pool);
     Real roughness = eval(bsdf.roughness, vertex.uv, vertex.uv_screen_size, texture_pool);
     Real clearcoat = eval(bsdf.clearcoat, vertex.uv, vertex.uv_screen_size, texture_pool);
     Real clearcoat_gloss = eval(bsdf.clearcoat_gloss, vertex.uv, vertex.uv_screen_size, texture_pool);
@@ -357,14 +354,15 @@ std::optional<BSDFSampleRecord>
 
         // Convert the incoming direction to local coordinates
         Vector3 local_dir_in = to_local(frame, dir_in);
-        Real roughness = eval(
-            bsdf.roughness, vertex.uv, vertex.uv_screen_size, texture_pool);
-        
+
         // Clamp roughness to avoid numerical issues.
-        roughness = std::clamp(roughness, Real(0.01), Real(1));
-        Real alpha = roughness * roughness;
+        Real aspect = sqrt(Real(1) - Real(0.9) * anisotropic);
+        Real a_min = Real(0.0001);
+        Real ax = fmax(a_min, roughness * roughness / aspect);
+        Real ay = fmax(a_min, roughness * roughness * aspect);
+
         Vector3 local_micro_normal =
-            sample_visible_normals(local_dir_in, alpha, rnd_param_uv);
+            sample_visible_normals_aniso(local_dir_in, ax, ay, rnd_param_uv);
         
         // Transform the micro normal to world space
         Vector3 half_vector = to_world(frame, local_micro_normal);
