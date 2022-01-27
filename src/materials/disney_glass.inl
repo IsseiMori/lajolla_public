@@ -61,9 +61,9 @@ Spectrum eval_op::operator()(const DisneyGlass &bsdf) const {
         // this cancels out the eta term.
         // See Chapter 5 of Eric Veach's thesis "Robust Monte Carlo Methods for Light Transport Simulation"
         // for more details.
-        Real eta_factor = dir == TransportDirection::TO_LIGHT ? (1 / (eta * eta)) : 1;
+        // Real eta_factor = dir == TransportDirection::TO_LIGHT ? (1 / (eta * eta)) : 1;
         Real h_dot_out = dot(half_vector, dir_out);
-        Real sqrt_denom = h_dot_in + eta * h_dot_out;
+        // Real sqrt_denom = h_dot_in + eta * h_dot_out;
         // Very complicated BSDF. See Walter et al.'s paper for more details.
         // "Microfacet Models for Refraction through Rough Surfaces"
         
