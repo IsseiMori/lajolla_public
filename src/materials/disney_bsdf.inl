@@ -254,11 +254,6 @@ Real pdf_sample_bsdf_op::operator()(const DisneyBSDF &bsdf) const {
         }
     }
 
-    // diffuse_weight = 0;
-    // metal_weight = 0;
-    // clearcoat_weight = 0;
-    // glass_weight = 1;
-
     Real weight_total = diffuse_weight + metal_weight + glass_weight + clearcoat_weight;
     diffuse_weight /= weight_total;
     metal_weight /= weight_total;
@@ -426,11 +421,6 @@ std::optional<BSDFSampleRecord>
                 Real(0) /* eta */, Real(1) /* roughness */};
         }
     }
-
-    // diffuse_weight = 0;
-    // metal_weight = 0;
-    // clearcoat_weight = 0;
-    // glass_weight = 1;
 
     Real weight_total = diffuse_weight + metal_weight + glass_weight + clearcoat_weight;
     diffuse_weight /= weight_total;
