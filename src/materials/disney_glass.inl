@@ -14,10 +14,9 @@ Spectrum eval_op::operator()(const DisneyGlass &bsdf) const {
     // (internal/external), otherwise we use external/internal.
     Real eta = dot(vertex.geometry_normal, dir_in) > 0 ? bsdf.eta : 1 / bsdf.eta;
 
-    Spectrum base_color = eval(
-        bsdf.base_color, vertex.uv, vertex.uv_screen_size, texture_pool);
-    Real roughness = eval(
-        bsdf.roughness, vertex.uv, vertex.uv_screen_size, texture_pool);
+    Spectrum base_color = eval(bsdf.base_color, vertex.uv, vertex.uv_screen_size, texture_pool);
+    Real roughness = eval(bsdf.roughness, vertex.uv, vertex.uv_screen_size, texture_pool);
+    Real anisotropic = eval(bsdf.anisotropic, vertex.uv, vertex.uv_screen_size, texture_pool);
 
     Vector3 half_vector;
     if (reflect) {
@@ -43,11 +42,22 @@ Spectrum eval_op::operator()(const DisneyGlass &bsdf) const {
     // use 1/bsdf.eta and we will get the same result.
     // However, using the incoming direction allows
     // us to use F to decide whether to reflect or refract during sampling.
+
+    roughness = std::clamp(roughness, Real(0.01), Real(1));
+    Real aspect = sqrt(Real(1) - Real(0.9) * anisotropic);
+    Real a_min = Real(0.0001);
+    Real ax = fmax(a_min, roughness * roughness / aspect);
+    Real ay = fmax(a_min, roughness * roughness * aspect);
+
+    
     Real h_dot_in = dot(half_vector, dir_in);
     Real F = fresnel_dielectric(h_dot_in, eta);
-    Real D = GTR2(dot(frame.n, half_vector), roughness);
-    Real G = smith_masking_gtr2(to_local(frame, dir_in), roughness) *
-             smith_masking_gtr2(to_local(frame, dir_out), roughness);
+    // Real D = GTR2(dot(frame.n, half_vector), roughness);
+    // Real G = smith_masking_gtr2(to_local(frame, dir_in), roughness) *
+    //          smith_masking_gtr2(to_local(frame, dir_out), roughness);
+    Real D = GTR2_aniso(ax, ay, frame, half_vector);
+    Real G = smithG_GGX_aniso(dot(dir_in, frame.n), dot(dir_in, frame.x), dot(dir_in, frame.y), ax, ay);
+        
     if (reflect) {
         return base_color * (F * D * G) / (4 * fabs(dot(frame.n, dir_in)));
     } else {
@@ -87,8 +97,13 @@ Real pdf_sample_bsdf_op::operator()(const DisneyGlass &bsdf) const {
     
     // If we are going into the surface, then we use normal eta
     // (internal/external), otherwise we use external/internal.
+    Real roughness = eval(bsdf.roughness, vertex.uv, vertex.uv_screen_size, texture_pool);
+    Real anisotropic = eval(bsdf.anisotropic, vertex.uv, vertex.uv_screen_size, texture_pool);
     Real eta = dot(vertex.geometry_normal, dir_in) > 0 ? bsdf.eta : 1 / bsdf.eta;
     assert(eta > 0);
+
+    // Clamp roughness to avoid numerical issues.
+    roughness = std::clamp(roughness, Real(0.01), Real(1));
 
     Vector3 half_vector;
     if (reflect) {
@@ -104,18 +119,22 @@ Real pdf_sample_bsdf_op::operator()(const DisneyGlass &bsdf) const {
         half_vector = -half_vector;
     }
 
-    Real roughness = eval(
-        bsdf.roughness, vertex.uv, vertex.uv_screen_size, texture_pool);
-    // Clamp roughness to avoid numerical issues.
-    roughness = std::clamp(roughness, Real(0.01), Real(1));
 
     // We sample the visible normals, also we use F to determine
     // whether to sample reflection or refraction
     // so PDF ~ F * D * G_in for reflection, PDF ~ (1 - F) * D * G_in for refraction.
+    Real aspect = sqrt(Real(1) - Real(0.9) * anisotropic);
+    Real a_min = Real(0.0001);
+    Real ax = fmax(a_min, roughness * roughness / aspect);
+    Real ay = fmax(a_min, roughness * roughness * aspect);
+    
     Real h_dot_in = dot(half_vector, dir_in);
     Real F = fresnel_dielectric(h_dot_in, eta);
-    Real D = GTR2(dot(half_vector, frame.n), roughness);
-    Real G_in = smith_masking_gtr2(to_local(frame, dir_in), roughness);
+    // Real D = GTR2(dot(half_vector, frame.n), roughness);
+    // Real G_in = smith_masking_gtr2(to_local(frame, dir_in), roughness);
+    Real D = GTR2_aniso(ax, ay, frame, half_vector);
+    Real G_in = smithG_GGX_aniso(dot(dir_in, frame.n), dot(dir_in, frame.x), dot(dir_in, frame.y), ax, ay);
+        
     if (reflect) {
         return (F * D * G_in) / (4 * fabs(dot(frame.n, dir_in)));
     } else {
@@ -138,15 +157,21 @@ std::optional<BSDFSampleRecord>
 
     Real eta = dot(vertex.geometry_normal, dir_in) > 0 ? bsdf.eta : 1 / bsdf.eta;
 
-    Real roughness = eval(
-        bsdf.roughness, vertex.uv, vertex.uv_screen_size, texture_pool);
+    Real anisotropic = eval(bsdf.anisotropic, vertex.uv, vertex.uv_screen_size, texture_pool);
+    Real roughness = eval(bsdf.roughness, vertex.uv, vertex.uv_screen_size, texture_pool);
     // Clamp roughness to avoid numerical issues.
     roughness = std::clamp(roughness, Real(0.01), Real(1));
-    // Sample a micro normal and transform it to world space -- this is our half-vector.
+
     Real alpha = roughness * roughness;
+    Real aspect = sqrt(Real(1) - Real(0.9) * anisotropic);
+    Real a_min = Real(0.0001);
+    Real ax = fmax(a_min, roughness * roughness / aspect);
+    Real ay = fmax(a_min, roughness * roughness * aspect);
+
+    // Sample a micro normal and transform it to world space -- this is our half-vector.
     Vector3 local_dir_in = to_local(frame, dir_in);
-    Vector3 local_micro_normal =
-        sample_visible_normals(local_dir_in, alpha, rnd_param_uv);
+    Vector3 local_micro_normal = sample_visible_normals_aniso(local_dir_in, ax, ay, rnd_param_uv);
+        // sample_visible_normals(local_dir_in, alpha, rnd_param_uv);
 
     Vector3 half_vector = to_world(frame, local_micro_normal);
     // Flip half-vector if it's below surface
