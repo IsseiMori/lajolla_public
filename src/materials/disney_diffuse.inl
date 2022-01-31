@@ -17,22 +17,23 @@ Spectrum eval_op::operator()(const DisneyDiffuse &bsdf) const {
 
     // Pre-compute reusable general terms
     Vector3 half_vector = normalize(dir_in + dir_out);
-    Real h_dot_in = dot(half_vector, dir_in);
     Real h_dot_out = dot(half_vector, dir_out);
+    Real n_dot_in = dot(frame.n, dir_in);
+    Real n_dot_out = dot(frame.n, dir_out);
 
     // Compute the base diffuse term
     Real FD90 = Real(0.5) + Real(2) * roughness * h_dot_out * h_dot_out;
-    Real FD_in = Real(1) + (FD90 - Real(1)) * (Real(1) - pow(h_dot_in,5));
-    Real FD_out = Real(1) + (FD90 - Real(1)) * (Real(1) - pow(h_dot_out,5));
-    Spectrum f_d = base_color * FD_in * FD_out * h_dot_out / c_PI;
+    Real FD_in = Real(1) + (FD90 - Real(1)) * (Real(1) - pow(n_dot_in,5));
+    Real FD_out = Real(1) + (FD90 - Real(1)) * (Real(1) - pow(n_dot_out,5));
+    Spectrum f_d = base_color * FD_in * FD_out * fabs(n_dot_out) / c_PI;
 
     // Compute the subsurface term
     Real FSS90 = roughness * h_dot_out * h_dot_out;
-    Real FSS_in = Real(1) * (FSS90 - Real(1)) * (Real(1) - pow(h_dot_in, 5));
-    Real FSS_out = Real(1) * (FSS90 - Real(1)) * (Real(1) - pow(h_dot_out, 5));
+    Real FSS_in = Real(1) + (FSS90 - Real(1)) * (Real(1) - pow(n_dot_in, 5));
+    Real FSS_out = Real(1) + (FSS90 - Real(1)) * (Real(1) - pow(n_dot_out, 5));
     Spectrum f_ss = Real(1.25) * base_color 
-                    * (FSS_in * FSS_out * (Real(1) / (h_dot_in + h_dot_out) - Real(0.5)) + Real(0.5))
-                    * h_dot_out / c_PI;
+                    * (FSS_in * FSS_out * (Real(1) / (fabs(n_dot_in) + fabs(n_dot_out)) - Real(0.5)) + Real(0.5))
+                    * fabs(n_dot_out) / c_PI;
 
     return (Real(1) - subsurface) * f_d + subsurface * f_ss;
 }

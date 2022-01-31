@@ -19,9 +19,9 @@ Spectrum eval_op::operator()(const DisneyBSDF &bsdf) const {
     Real specular_tint = eval(bsdf.specular_tint, vertex.uv, vertex.uv_screen_size, texture_pool);
     Real roughness = eval(bsdf.roughness, vertex.uv, vertex.uv_screen_size, texture_pool);
     Real anisotropic = eval(bsdf.anisotropic, vertex.uv, vertex.uv_screen_size, texture_pool);
+    Real sheen = eval(bsdf.sheen_tint, vertex.uv, vertex.uv_screen_size, texture_pool);
     Real sheen_tint = eval(bsdf.sheen_tint, vertex.uv, vertex.uv_screen_size, texture_pool);
     Real clearcoat = eval(bsdf.clearcoat, vertex.uv, vertex.uv_screen_size, texture_pool);
-    roughness = std::clamp(roughness, Real(0.01), Real(1));
 
     Spectrum f_diffuse;
     Spectrum f_metal;
@@ -29,72 +29,114 @@ Spectrum eval_op::operator()(const DisneyBSDF &bsdf) const {
     Spectrum f_clearcoat;
     Spectrum f_sheen;
 
-    /*-------------------- Diffuse --------------------*/
-    {
-        // Pre-compute reusable general terms
-        Vector3 half_vector = normalize(dir_in + dir_out);
-        Real h_dot_in = dot(half_vector, dir_in);
-        Real h_dot_out = dot(half_vector, dir_out);
-
-        // Compute the base diffuse term
-        Real FD90 = Real(0.5) + Real(2) * roughness * h_dot_out * h_dot_out;
-        Real FD_in = Real(1) + (FD90 - Real(1)) * (Real(1) - pow(h_dot_in,5));
-        Real FD_out = Real(1) + (FD90 - Real(1)) * (Real(1) - pow(h_dot_out,5));
-        Spectrum f_d = base_color * FD_in * FD_out * h_dot_out / c_PI;
-
-        // Compute the subsurface term
-        Real FSS90 = roughness * h_dot_out * h_dot_out;
-        Real FSS_in = Real(1) * (FSS90 - Real(1)) * (Real(1) - pow(h_dot_in, 5));
-        Real FSS_out = Real(1) * (FSS90 - Real(1)) * (Real(1) - pow(h_dot_out, 5));
-        Spectrum f_ss = Real(1.25) * base_color 
-                        * (FSS_in * FSS_out * (Real(1) / (h_dot_in + h_dot_out) - Real(0.5)) + Real(0.5))
-                        * h_dot_out / c_PI;
-
-        f_diffuse = (Real(1) - subsurface) * f_d + subsurface * f_ss;
-    }
+    Vector3 half_vector = normalize(dir_in + dir_out);
 
 
-    /*-------------------- Metal --------------------*/
-    {
-        // Pre-compute reusable general terms
-        Vector3 half_vector = normalize(dir_in + dir_out);
-        Real h_dot_out = dot(half_vector, dir_out);
-
-        // Compute F
-        // Spectrum Fm = base_color + (Real(1) - base_color)
-        //             * pow(Real(1) - fabs(h_dot_out), 5);
+    // No light below the surface
+    // If ray is coming from inside, there will be only glass component
+    if (dot(vertex.geometry_normal, dir_in) >= 0 &&
+                dot(vertex.geometry_normal, dir_out) >= 0) {
         
-        // Include an achromatic specular component
-        Spectrum C_tint = base_color / luminance(base_color);
-        if ( luminance(base_color) <= 0 ) C_tint = make_const_spectrum(Real(1));
+        /*-------------------- Diffuse --------------------*/
+        {
 
-        Real eta = Real(1.5);
-        Real R_0 = pow(eta - Real(1), 2) / pow(eta + Real(1), 2);
+            // Pre-compute reusable general terms
+            Real h_dot_out = dot(half_vector, dir_out);
+            Real n_dot_in = dot(frame.n, dir_in);
+            Real n_dot_out = dot(frame.n, dir_out);
 
-        Spectrum Ks = (Real(1) - specular_tint) + specular_tint * C_tint;
-        Spectrum C0 = specular * R_0 * (Real(1) - metallic) * Ks + metallic * base_color;
-        Spectrum Fm = C0 + (Real(1) - C0) * pow(Real(1) - fabs(h_dot_out), 5);
+            // Compute the base diffuse term
+            Real FD90 = Real(0.5) + Real(2) * roughness * h_dot_out * h_dot_out;
+            Real FD_in = Real(1) + (FD90 - Real(1)) * (Real(1) - pow(n_dot_in,5));
+            Real FD_out = Real(1) + (FD90 - Real(1)) * (Real(1) - pow(n_dot_out,5));
+            Spectrum f_d = base_color * FD_in * FD_out * fabs(n_dot_out) / c_PI;
 
-        // Compute Dm
-        Real aspect = sqrt(Real(1) - Real(0.9) * anisotropic);
-        Real a_min = Real(0.0001);
-        Real ax = fmax(a_min, roughness * roughness / aspect);
-        Real ay = fmax(a_min, roughness * roughness * aspect);
-        Real Dm = GTR2_aniso(ax, ay, frame, half_vector);
+            // Compute the subsurface term
+            Real FSS90 = roughness * h_dot_out * h_dot_out;
+            Real FSS_in = Real(1) + (FSS90 - Real(1)) * (Real(1) - pow(n_dot_in, 5));
+            Real FSS_out = Real(1) + (FSS90 - Real(1)) * (Real(1) - pow(n_dot_out, 5));
+            Spectrum f_ss = Real(1.25) * base_color 
+                            * (FSS_in * FSS_out * (Real(1) / (fabs(n_dot_in) + fabs(n_dot_out)) - Real(0.5)) + Real(0.5))
+                            * fabs(n_dot_out) / c_PI;
 
-        // Compute G
-        Real Gin = smithG_GGX_aniso(dot(dir_in, frame.n), dot(dir_in, frame.x), dot(dir_in, frame.y), ax, ay);
-        Real Gout = smithG_GGX_aniso(dot(dir_out, frame.n), dot(dir_out, frame.x), dot(dir_out, frame.y), ax, ay);
+            f_diffuse = (Real(1) - subsurface) * f_d + subsurface * f_ss;
+        }
 
-        f_metal = Fm * Dm * Gin * Gout / (Real(4) * fabs(dot(dir_in, frame.n)));
+
+        /*-------------------- Metal --------------------*/
+        {
+            // Pre-compute reusable general terms
+
+            roughness = std::clamp(roughness, Real(0.01), Real(1));
+
+            Real h_dot_out = dot(half_vector, dir_out);
+
+            // Compute F
+            // Spectrum Fm = base_color + (Real(1) - base_color)
+            //             * pow(Real(1) - fabs(h_dot_out), 5);
+            
+            // Include an achromatic specular component
+            Spectrum C_tint = base_color / luminance(base_color);
+            if ( luminance(base_color) <= 0 ) C_tint = make_const_spectrum(Real(1));
+
+            Real eta = Real(1.5);
+            Real R_0 = pow(eta - Real(1), 2) / pow(eta + Real(1), 2);
+
+            Spectrum Ks = (Real(1) - specular_tint) + specular_tint * C_tint;
+            Spectrum C0 = specular * R_0 * (Real(1) - metallic) * Ks + metallic * base_color;
+            Spectrum Fm = C0 + (Real(1) - C0) * pow(Real(1) - fabs(h_dot_out), 5);
+
+            // Compute Dm
+            Real aspect = sqrt(Real(1) - Real(0.9) * anisotropic);
+            Real a_min = Real(0.0001);
+            Real ax = fmax(a_min, roughness * roughness / aspect);
+            Real ay = fmax(a_min, roughness * roughness * aspect);
+            Real Dm = GTR2_aniso(ax, ay, frame, half_vector);
+
+            // Compute G
+            Real Gin = smithG_GGX_aniso(dot(dir_in, frame.n), dot(dir_in, frame.x), dot(dir_in, frame.y), ax, ay);
+            Real Gout = smithG_GGX_aniso(dot(dir_out, frame.n), dot(dir_out, frame.x), dot(dir_out, frame.y), ax, ay);
+
+            f_metal = Fm * Dm * Gin * Gout / (Real(4) * fabs(dot(dir_in, frame.n)));
+        }
+
+        /*-------------------- Clearcoat --------------------*/
+        {
+            // Pre-compute useful values
+
+            Real n_dot_h = dot(frame.n, half_vector);
+            Real n_dot_in = dot(frame.n, dir_in);
+            if ( n_dot_h > 0 ) {
+                Real clearcoat_gloss = eval(bsdf.clearcoat_gloss, vertex.uv, vertex.uv_screen_size, texture_pool);
+            
+                Real F = schlick_fresnel(half_vector, dir_out);
+                Real D = compute_Dc(clearcoat_gloss, pow(dot(frame.n, half_vector),2));
+                Real G = smith_masking_gtr2(to_local(frame, dir_in), Real(0.5)) *
+                        smith_masking_gtr2(to_local(frame, dir_out), Real(0.5));
+
+                f_clearcoat = make_const_spectrum(F * D * G / (Real(4) * fabs(n_dot_in)));
+            }
+        }
+
+        /*-------------------- Sheen --------------------*/
+        {
+            // Pre-compute useful values
+
+            Real n_dot_out = dot(frame.n, dir_out);
+
+
+            Spectrum C_tint = base_color / luminance(base_color);
+            if ( luminance(base_color) <= 0 ) C_tint = make_const_spectrum(Real(1));
+
+            Spectrum C_sheen = (Real(1) - sheen_tint) + sheen_tint * C_tint;
+            f_sheen = C_sheen * pow(Real(1) - fabs(dot(half_vector, dir_out)), 5) * fabs(n_dot_out);
+        }
     }
-
 
     /*-------------------- Glass --------------------*/
     {
         Real eta = dot(vertex.geometry_normal, dir_in) > 0 ? bsdf.eta : 1 / bsdf.eta;
 
-        Vector3 half_vector;
         if (reflect) {
             half_vector = normalize(dir_in + dir_out);
         } else {
@@ -107,8 +149,7 @@ Spectrum eval_op::operator()(const DisneyBSDF &bsdf) const {
         if (dot(half_vector, frame.n) < 0) {
             half_vector = -half_vector;
         }
-
-        // Clamp roughness to avoid numerical issues.
+        
         roughness = std::clamp(roughness, Real(0.01), Real(1));
 
         Real h_dot_in = dot(half_vector, dir_in);
@@ -126,43 +167,17 @@ Spectrum eval_op::operator()(const DisneyBSDF &bsdf) const {
         }
     }
 
-    /*-------------------- Clearcoat --------------------*/
-    {
-        // Pre-compute useful values
-        Vector3 half_vector = normalize(dir_in + dir_out);
-        Real n_dot_h = dot(frame.n, half_vector);
-        Real n_dot_in = dot(frame.n, dir_in);
-        if ( n_dot_h <= 0 ) {
-            return make_zero_spectrum();
-        }
-
-        Real clearcoat_gloss = eval(bsdf.clearcoat_gloss, vertex.uv, vertex.uv_screen_size, texture_pool);
-        
-        Real F = schlick_fresnel(half_vector, dir_out);
-        Real D = compute_D(clearcoat_gloss, pow(dot(frame.n, half_vector),2));
-        Real G = smith_masking_gtr2(to_local(frame, dir_in), Real(0.05)) *
-                smith_masking_gtr2(to_local(frame, dir_out), Real(0.05));
-
-        f_clearcoat = make_const_spectrum(F * D * G / (Real(4) * fabs(n_dot_in)));
+    if (dot(vertex.geometry_normal, dir_in) < 0) {
+        f_diffuse = make_zero_spectrum();
+        f_metal = make_zero_spectrum();
+        f_sheen = make_zero_spectrum();
+        f_clearcoat = make_zero_spectrum();
     }
 
-    /*-------------------- Sheen --------------------*/
-    {
-        // Pre-compute useful values
-        Vector3 half_vector = normalize(dir_in + dir_out);
-        Real n_dot_out = dot(frame.n, dir_out);
-
-
-        Spectrum C_tint = base_color / luminance(base_color);
-        if ( luminance(base_color) <= 0 ) C_tint = make_const_spectrum(Real(1));
-
-        Spectrum C_sheen = (Real(1) - sheen_tint) + sheen_tint * C_tint;
-        f_sheen = C_sheen * pow(Real(1) - fabs(dot(half_vector, dir_out)), 5) * fabs(n_dot_out);
-    }
 
 
     Spectrum f_bsdf = (Real(1) - specular_transmission) * (Real(1) - metallic) * f_diffuse
-        + (Real(1) - metallic) * f_sheen
+        + (Real(1) - metallic) * sheen * f_sheen
         + (Real(1) - specular_transmission * (Real(1) - metallic)) * f_metal
         + Real(0.25) * clearcoat * f_clearcoat
         + (Real(1) - metallic) * specular_transmission * f_glass;
@@ -188,7 +203,7 @@ Real pdf_sample_bsdf_op::operator()(const DisneyBSDF &bsdf) const {
     Real anisotropic = eval(bsdf.anisotropic, vertex.uv, vertex.uv_screen_size, texture_pool);
     Real clearcoat = eval(bsdf.clearcoat, vertex.uv, vertex.uv_screen_size, texture_pool);
     Real eta = dot(vertex.geometry_normal, dir_in) > 0 ? bsdf.eta : 1 / bsdf.eta;
-    roughness = std::clamp(roughness, Real(0.01), Real(1));
+    assert(eta > 0);
 
     
     Real diffuse_weight = (Real(1) - metallic) * (Real(1) - specular_transmission);
@@ -196,16 +211,25 @@ Real pdf_sample_bsdf_op::operator()(const DisneyBSDF &bsdf) const {
     Real glass_weight = (Real(1) - metallic) * specular_transmission;
     Real clearcoat_weight = Real(0.25) * clearcoat;
 
-    if ( dot(vertex.geometry_normal, dir_in) <= 0 ) {
+    if (dot(vertex.geometry_normal, dir_in) < 0) {
+        // Our incoming ray is coming from inside,
+        // so the probability of sampling the glass lobe is 1 if glass_prob is not 0.
         diffuse_weight = 0;
         metal_weight = 0;
         clearcoat_weight = 0;
+        if (glass_weight > 0) {
+            glass_weight = 1;
+        }
+        else {
+            return Real(0);
+        }
     }
 
-    // diffuse_weight = 1;
+    // diffuse_weight = 0;
     // metal_weight = 0;
     // clearcoat_weight = 0;
-    // glass_weight = 0;
+    // glass_weight = 1;
+
 
     Real weight_total = diffuse_weight + metal_weight + glass_weight + clearcoat_weight;
     diffuse_weight /= weight_total;
@@ -215,11 +239,14 @@ Real pdf_sample_bsdf_op::operator()(const DisneyBSDF &bsdf) const {
     
 
 
-    Real sum_pdf = Real(0);
+    Real diffuse_pdf = Real(0);
+    Real metal_pdf = Real(0);
+    Real glass_pdf = Real(0);
+    Real clearcoat_pdf = Real(0);
 
     /*-------------------- Diffuse --------------------*/
     {
-        sum_pdf += diffuse_weight * fmax(dot(frame.n, dir_out), Real(0)) / c_PI;
+        diffuse_pdf = fmax(dot(frame.n, dir_out), Real(0)) / c_PI;
     }
     
 
@@ -228,6 +255,8 @@ Real pdf_sample_bsdf_op::operator()(const DisneyBSDF &bsdf) const {
     {
         // Pre-compute reusable general terms
         Vector3 half_vector = normalize(dir_in + dir_out);
+
+        roughness = std::clamp(roughness, Real(0.01), Real(1));
 
         // Compute Dm
         Real aspect = sqrt(Real(1) - Real(0.9) * anisotropic);
@@ -238,7 +267,7 @@ Real pdf_sample_bsdf_op::operator()(const DisneyBSDF &bsdf) const {
 
         // Compute G
         Real Gin = smithG_GGX_aniso(dot(dir_in, frame.n), dot(dir_in, frame.x), dot(dir_in, frame.y), ax, ay);
-        sum_pdf +=  metal_weight * Dm * Gin / (Real(4) * fabs(dot(dir_in, frame.n)));
+        metal_pdf =  Dm * Gin / (Real(4) * fabs(dot(dir_in, frame.n)));
     }
 
 
@@ -259,10 +288,13 @@ Real pdf_sample_bsdf_op::operator()(const DisneyBSDF &bsdf) const {
             half_vector = -half_vector;
         }
 
-        Real roughness = eval(
-            bsdf.roughness, vertex.uv, vertex.uv_screen_size, texture_pool);
-        // Clamp roughness to avoid numerical issues.
         roughness = std::clamp(roughness, Real(0.01), Real(1));
+
+        // Sample a micro normal and transform it to world space -- this is our half-vector.
+        Real aspect = sqrt(Real(1) - Real(0.9) * anisotropic);
+        Real a_min = Real(0.0001);
+        Real ax = fmax(a_min, roughness * roughness / aspect);
+        Real ay = fmax(a_min, roughness * roughness * aspect);
 
         // We sample the visible normals, also we use F to determine
         // whether to sample reflection or refraction
@@ -271,13 +303,15 @@ Real pdf_sample_bsdf_op::operator()(const DisneyBSDF &bsdf) const {
         Real F = fresnel_dielectric(h_dot_in, eta);
         Real D = GTR2(dot(half_vector, frame.n), roughness);
         Real G_in = smith_masking_gtr2(to_local(frame, dir_in), roughness);
+        // Real D = GTR2_aniso(ax, ay, frame, half_vector);
+        // Real G_in = smithG_GGX_aniso(dot(dir_in, frame.n), dot(dir_in, frame.x), dot(dir_in, frame.y), ax, ay);
         if (reflect) {
-            sum_pdf +=  glass_weight *  (F * D * G_in) / (4 * fabs(dot(frame.n, dir_in)));
+            glass_pdf = (F * D * G_in) / (4 * fabs(dot(frame.n, dir_in)));
         } else {
             Real h_dot_out = dot(half_vector, dir_out);
             Real sqrt_denom = h_dot_in + eta * h_dot_out;
             Real dh_dout = eta * eta * h_dot_out / (sqrt_denom * sqrt_denom);
-            sum_pdf +=  glass_weight *  (1 - F) * D * G_in * fabs(dh_dout * h_dot_in / dot(frame.n, dir_in));
+            glass_pdf = (1 - F) * D * G_in * fabs(dh_dout * h_dot_in / dot(frame.n, dir_in));
         }
     }
 
@@ -286,16 +320,22 @@ Real pdf_sample_bsdf_op::operator()(const DisneyBSDF &bsdf) const {
         // Pre-compute useful values
         Vector3 half_vector = normalize(dir_in + dir_out);
         Real n_dot_h = dot(frame.n, half_vector);
-        Real n_dot_out = dot(frame.n, dir_out);
 
         Real clearcoat_gloss = eval(bsdf.clearcoat_gloss, vertex.uv, vertex.uv_screen_size, texture_pool);
         
-        Real D = compute_D(clearcoat_gloss, pow(dot(frame.n, half_vector),2));
+        Real D = compute_Dc(clearcoat_gloss, pow(dot(frame.n, half_vector),2));
     
-        sum_pdf +=  clearcoat_weight * D * fabs(n_dot_h) / (Real(4) * fabs(n_dot_out));
+        clearcoat_pdf = D * fabs(n_dot_h) / (Real(4) * fabs(dot(half_vector, dir_out)));
     }
 
-    return sum_pdf;
+
+    if (reflect) {
+        return diffuse_weight * diffuse_pdf + metal_weight * metal_pdf + clearcoat_weight * clearcoat_pdf + glass_weight * glass_pdf;
+    } else {
+        return glass_weight * glass_pdf;
+    }
+    // return diffuse_weight * diffuse_pdf + metal_weight * metal_pdf + clearcoat_weight * clearcoat_pdf + glass_weight * glass_pdf;
+    
 }
 
 std::optional<BSDFSampleRecord>
@@ -314,23 +354,32 @@ std::optional<BSDFSampleRecord>
     Real clearcoat = eval(bsdf.clearcoat, vertex.uv, vertex.uv_screen_size, texture_pool);
     Real clearcoat_gloss = eval(bsdf.clearcoat_gloss, vertex.uv, vertex.uv_screen_size, texture_pool);
     Real eta = dot(vertex.geometry_normal, dir_in) > 0 ? bsdf.eta : 1 / bsdf.eta;
-    roughness = std::clamp(roughness, Real(0.01), Real(1));
     
     Real diffuse_weight = (Real(1) - metallic) * (Real(1) - specular_transmission);
     Real metal_weight = (Real(1) - specular_transmission * (Real(1) - metallic));
     Real glass_weight = (Real(1) - metallic) * specular_transmission;
     Real clearcoat_weight = Real(0.25) * clearcoat;
 
-    if ( dot(vertex.geometry_normal, dir_in) <= 0 ) {
+    if (dot(vertex.geometry_normal, dir_in) < 0) {
+        // Our incoming ray is coming from inside,
+        // so the probability of sampling the glass lobe is 1 if glass_prob is not 0.
         diffuse_weight = 0;
         metal_weight = 0;
         clearcoat_weight = 0;
+        if (glass_weight > 0) {
+            glass_weight = 1;
+        }
+        else {
+            return BSDFSampleRecord{
+                Vector3(0,0,0),
+                Real(0) /* eta */, Real(1) /* roughness */};
+        }
     }
 
-    // diffuse_weight = 1;
+    // diffuse_weight = 0;
     // metal_weight = 0;
     // clearcoat_weight = 0;
-    // glass_weight = 0;
+    // glass_weight = 1;
 
     Real weight_total = diffuse_weight + metal_weight + glass_weight + clearcoat_weight;
     diffuse_weight /= weight_total;
@@ -351,6 +400,8 @@ std::optional<BSDFSampleRecord>
     } else if ( rand < diffuse_weight + metal_weight ) {
 
         /*-------------------- Metal --------------------*/
+
+        roughness = std::clamp(roughness, Real(0.01), Real(1));
 
         // Convert the incoming direction to local coordinates
         Vector3 local_dir_in = to_local(frame, dir_in);
@@ -377,11 +428,21 @@ std::optional<BSDFSampleRecord>
 
         /*-------------------- Glass --------------------*/
 
+        roughness = std::clamp(roughness, Real(0.01), Real(1));
+
+        // Convert the incoming direction to local coordinates
+        Vector3 local_dir_in = to_local(frame, dir_in);
+
         // Sample a micro normal and transform it to world space -- this is our half-vector.
         Real alpha = roughness * roughness;
-        Vector3 local_dir_in = to_local(frame, dir_in);
+        Real aspect = sqrt(Real(1) - Real(0.9) * anisotropic);
+        Real a_min = Real(0.0001);
+        Real ax = fmax(a_min, roughness * roughness / aspect);
+        Real ay = fmax(a_min, roughness * roughness * aspect);
+
         Vector3 local_micro_normal =
             sample_visible_normals(local_dir_in, alpha, rnd_param_uv);
+            // sample_visible_normals_aniso(local_dir_in, ax, ay, rnd_param_uv);
 
         Vector3 half_vector = to_world(frame, local_micro_normal);
         // Flip half-vector if it's below surface
@@ -394,7 +455,9 @@ std::optional<BSDFSampleRecord>
         Real h_dot_in = dot(half_vector, dir_in);
         Real F = fresnel_dielectric(h_dot_in, eta);
 
-        if (rnd_param_w <= F) {
+        Real rand_new = (rand - (diffuse_weight + metal_weight)) / glass_weight;
+
+        if (rand_new <= F) {
             // Reflection
             Vector3 reflected = normalize(-dir_in + 2 * dot(dir_in, half_vector) * half_vector);
             // set eta to 0 since we are not transmitting
@@ -422,27 +485,26 @@ std::optional<BSDFSampleRecord>
 
         /*-------------------- Clearcoat --------------------*/
 
-        Real alpha = (Real(1) - clearcoat_gloss) * Real(0.1) + 
-                 clearcoat_gloss * Real(0.001);
-        Real alpha2 = alpha * alpha;
+        Real a = (Real(1) - clearcoat_gloss) * Real(0.1) + clearcoat_gloss * Real(0.001);
+        Real a2 = a * a;
 
-        Real cos_h_elevation = sqrt((Real(1) - pow(alpha2, Real(1) - rnd_param_uv[0])) / (Real(1) - alpha2));
+        Real cos_h_elevation = sqrt((Real(1) - pow(a2, Real(1) - rnd_param_uv[0])) / (Real(1) - a2));
         Real h_elevation = acos(cos_h_elevation);
         Real h_azimuth = Real(2) * c_PI * rnd_param_uv[1];
         Real hlx = sin(h_elevation) * cos(h_azimuth);
         Real hly = sin(h_elevation) * sin(h_azimuth);
         Real hlz = cos(h_elevation);
-        Vector3 h = Vector3(hlx, hly, hlz);
-        Vector3 hemi_N = to_world(h, dir_in);
+        Vector3 h = normalize(Vector3(hlx, hly, hlz));
+
+        Vector3 half_vector = to_world(frame, h);
+
+        Vector3 reflected = normalize(-dir_in + 2 * dot(dir_in, half_vector) * half_vector);
 
         return BSDFSampleRecord{
-            hemi_N,
+            reflected,
             Real(0) /* eta */, Real(1) /* roughness */};
     }
 
-    return BSDFSampleRecord{
-            Vector3(0,0,0),
-            Real(0) /* eta */, Real(1) /* roughness */};
 }
 
 TextureSpectrum get_texture_op::operator()(const DisneyBSDF &bsdf) const {
