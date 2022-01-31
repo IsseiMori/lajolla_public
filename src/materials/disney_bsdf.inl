@@ -76,19 +76,19 @@ Spectrum eval_op::operator()(const DisneyBSDF &bsdf) const {
             Real h_dot_out = dot(half_vector, dir_out);
 
             // Compute F
-            Spectrum Fm = base_color + (Real(1) - base_color)
-                        * pow(Real(1) - fabs(h_dot_out), 5);
+            // Spectrum Fm = base_color + (Real(1) - base_color)
+            //             * pow(Real(1) - fabs(h_dot_out), 5);
             
             // // Include an achromatic specular component
-            // Spectrum C_tint = base_color / luminance(base_color);
-            // if ( luminance(base_color) <= 0 ) C_tint = make_const_spectrum(Real(1));
+            Spectrum C_tint = base_color / luminance(base_color);
+            if ( luminance(base_color) <= 0 ) C_tint = make_const_spectrum(Real(1));
 
-            // Real eta = Real(1.5);
-            // Real R_0 = pow(eta - Real(1), 2) / pow(eta + Real(1), 2);
+            Real eta = Real(1.5);
+            Real R_0 = pow(eta - Real(1), 2) / pow(eta + Real(1), 2);
 
-            // Spectrum Ks = (Real(1) - specular_tint) + specular_tint * C_tint;
-            // Spectrum C0 = specular * R_0 * (Real(1) - metallic) * Ks + metallic * base_color;
-            // Spectrum Fm = C0 + (Real(1) - C0) * pow(Real(1) - h_dot_out, 5);
+            Spectrum Ks = (Real(1) - specular_tint) + specular_tint * C_tint;
+            Spectrum C0 = specular * R_0 * (Real(1) - metallic) * Ks + metallic * base_color;
+            Spectrum Fm = C0 + (Real(1) - C0) * pow(Real(1) - h_dot_out, 5);
 
             // Compute Dm
             Real aspect = sqrt(Real(1) - Real(0.9) * anisotropic);
@@ -258,7 +258,6 @@ Real pdf_sample_bsdf_op::operator()(const DisneyBSDF &bsdf) const {
     // metal_weight = 0;
     // clearcoat_weight = 0;
     // glass_weight = 1;
-
 
     Real weight_total = diffuse_weight + metal_weight + glass_weight + clearcoat_weight;
     diffuse_weight /= weight_total;
