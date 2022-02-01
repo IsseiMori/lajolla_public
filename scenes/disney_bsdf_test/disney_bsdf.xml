@@ -5,6 +5,15 @@
 		<integer name="maxDepth" value="-1"/>
 	</integrator>
 
+	<texture type="checkerboard" id="__planetex">
+		<rgb name="color0" value="0.4"/>
+		<rgb name="color1" value="0.2"/>
+		<float name="uscale" value="8.0"/>
+		<float name="vscale" value="8.0"/>
+		<float name="uoffset" value="0.0"/>
+		<float name="voffset" value="0.0"/>
+	</texture>
+
 	<shape type="serialized">
 		<string name="filename" value="../matpreview/matpreview.serialized"/>
 		<integer name="shapeIndex" value="2"/>
@@ -27,6 +36,7 @@
 			<float name="clearcoat" value="0.5"/>
 			<float name="clearcoatGloss" value="0.5"/>
 			<float name="eta" value="1.5"/>
+			<ref name="reflectance" id="__planetex"/>
 		</bsdf>
 	</shape>
 
@@ -39,7 +49,7 @@
 		</transform>
 
 		<sampler type="independent">
-			<integer name="sampleCount" value="256"/>
+			<integer name="sampleCount" value="128"/>
 		</sampler>
 
 		<film type="hdrfilm" id="film">
@@ -65,14 +75,6 @@
 		<rgb name="reflectance" value="0.18 0.18 0.18"/>
 	</bsdf>
 
-	<texture type="checkerboard" id="__planetex">
-		<rgb name="color0" value="0.4"/>
-		<rgb name="color1" value="0.2"/>
-		<float name="uscale" value="8.0"/>
-		<float name="vscale" value="8.0"/>
-		<float name="uoffset" value="0.0"/>
-		<float name="voffset" value="0.0"/>
-	</texture>
 
 	<bsdf type="diffuse" id="__planemat">
 		<ref name="reflectance" id="__planetex"/>

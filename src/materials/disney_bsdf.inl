@@ -15,6 +15,8 @@ Spectrum eval_op::operator()(const DisneyBSDF &bsdf) const {
     Real sheen_tint = eval(bsdf.sheen_tint, vertex.uv, vertex.uv_screen_size, texture_pool);
     Real clearcoat = eval(bsdf.clearcoat, vertex.uv, vertex.uv_screen_size, texture_pool);
 
+    Spectrum tex_color = eval(bsdf.reflectance, vertex.uv, vertex.uv_screen_size, texture_pool);
+
     Spectrum f_diffuse = make_zero_spectrum();
     Spectrum f_metal = make_zero_spectrum();
     Spectrum f_glass = make_zero_spectrum();
@@ -34,6 +36,8 @@ Spectrum eval_op::operator()(const DisneyBSDF &bsdf) const {
             if (dot(frame.n, dir_in) < 0) {
                 frame = -frame;
             }
+
+            base_color = base_color * Real(0.2) + tex_color * Real(0.8);
 
             Real roughness = eval(bsdf.roughness, vertex.uv, vertex.uv_screen_size, texture_pool);
 

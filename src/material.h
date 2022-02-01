@@ -93,8 +93,8 @@ struct DisneyBSDF {
     Texture<Real> sheen_tint;
     Texture<Real> clearcoat;
     Texture<Real> clearcoat_gloss;
-
     Real eta;
+    Texture<Spectrum> reflectance;
 };
 
 // To add more materials, first create a struct for the material, then overload the () operators for all the
