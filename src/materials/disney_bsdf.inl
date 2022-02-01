@@ -228,7 +228,6 @@ Real pdf_sample_bsdf_op::operator()(const DisneyBSDF &bsdf) const {
 
     Real specular_transmission = eval(bsdf.specular_transmission, vertex.uv, vertex.uv_screen_size, texture_pool);
     Real metallic = eval(bsdf.metallic, vertex.uv, vertex.uv_screen_size, texture_pool);
-    Real roughness = eval(bsdf.roughness, vertex.uv, vertex.uv_screen_size, texture_pool);
     Real anisotropic = eval(bsdf.anisotropic, vertex.uv, vertex.uv_screen_size, texture_pool);
     Real clearcoat = eval(bsdf.clearcoat, vertex.uv, vertex.uv_screen_size, texture_pool);
     Real eta = dot(vertex.geometry_normal, dir_in) > 0 ? bsdf.eta : 1 / bsdf.eta;
@@ -495,7 +494,6 @@ std::optional<BSDFSampleRecord>
         Vector3 local_dir_in = to_local(frame, dir_in);
 
         // Sample a micro normal and transform it to world space -- this is our half-vector.
-        Real alpha = roughness * roughness;
         Real aspect = sqrt(Real(1) - Real(0.9) * anisotropic);
         Real a_min = Real(0.0001);
         Real ax = fmax(a_min, roughness * roughness / aspect);

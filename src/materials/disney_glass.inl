@@ -162,7 +162,6 @@ std::optional<BSDFSampleRecord>
     // Clamp roughness to avoid numerical issues.
     roughness = std::clamp(roughness, Real(0.01), Real(1));
 
-    Real alpha = roughness * roughness;
     Real aspect = sqrt(Real(1) - Real(0.9) * anisotropic);
     Real a_min = Real(0.0001);
     Real ax = fmax(a_min, roughness * roughness / aspect);
