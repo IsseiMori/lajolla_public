@@ -405,7 +405,6 @@ Spectrum next_event_estimation(const Scene &scene,
             // Something is blocking: is it an opaque surface?
             if ( vertex.material_id >= 0 ) {
                 // we’re blocked
-                // return Spectrum(0,0,100);
                 return make_zero_spectrum();
             }
 
@@ -426,7 +425,7 @@ Spectrum next_event_estimation(const Scene &scene,
 
 
     // TODO: checking only R channel 
-    if ( transmittance_light.x > 0 ) {
+    if ( max(transmittance_light) > 0 ) {
         
         // Compute T_light * G * f * L & pdf_nee
 
@@ -477,7 +476,6 @@ Spectrum vol_path_tracing_4(const Scene &scene,
     Vector2 screen_pos((x + next_pcg32_real<Real>(rng)) / w,
                       (y + next_pcg32_real<Real>(rng)) / h);
     Ray ray = sample_primary(scene.camera, screen_pos);
-    ray.tnear = get_intersection_epsilon(scene); // avoid self intersection, not sure if this is necessary
     RayDifferential ray_diff = RayDifferential{Real(0), Real(0)};
 
     int current_medium = scene.camera.medium_id;
@@ -532,27 +530,12 @@ Spectrum vol_path_tracing_4(const Scene &scene,
 
                 Vector3 p = ray.org + t * ray.dir;
 
-                Spectrum nee = next_event_estimation(scene, 
-                                                    rng, 
-                                                    p, 
-                                                    current_medium, 
-                                                    bounces, 
-                                                    -ray.dir);
+                ray.org = ray.org + t * ray.dir;   
+            }
+            else {
+                ray.org = vertex.position;
+            }
 
-                // return transmittance * sigma_s * nee / trans_pdf;
-                radiance += transmittance * sigma_s * nee / trans_pdf;
-
-                // Record the last position that can issue a next event estimation
-                // NEE is 0 and invalid if it is blocked by something
-                // or does not reach the surface before the bounce limit
-                if ( nee.x > 0 ) {
-                    nee_p_cache = p;
-                    is_nee_issued = true;
-                }
-                
-            } 
-
-            ray.org = ray.org + t * ray.dir;
         }
         else {
             // For vaccume volume, we simply move the ray origin to the intersection point
@@ -569,24 +552,12 @@ Spectrum vol_path_tracing_4(const Scene &scene,
         current_path_throughput *= transmittance / trans_pdf;
 
 
-        if ( !scatter ) {
+        // Hit a light source.
+        // Add light contribution.
+        if ( !scatter && vertex_ && is_light(scene.shapes[vertex.shape_id]) ) {
             // reach a surface, include emission
 
-            Spectrum Le = make_zero_spectrum();
-
-            if (vertex_ && is_light(scene.shapes[vertex.shape_id])) {
-                Le = emission(vertex, -ray.dir, scene);
-            }
-
-            // radiance += current_path_throughput * Le;
-
-            if ( bounces == 0 ) {
-
-                // This is the only way we can see the light source, so
-                // we don’t need multiple importance sampling.
-                radiance += current_path_throughput * Le;
-
-            } 
+            Spectrum Le = emission(vertex, -ray.dir, scene);
 
             if ( bounces == 0 ) {
 
@@ -597,79 +568,104 @@ Spectrum vol_path_tracing_4(const Scene &scene,
             } else {
                 // Need to account for next event estimation
 
-                if (vertex_ && is_light(scene.shapes[vertex.shape_id])) {
-                    // Add light contribution only if the surface is emissive
+        
+                // Add light contribution only if the surface is emissive
 
-                    // Compute the probability of sampling the current intersected light point
-                    // from the point the next event estimation was issued 
-                    PointAndNormal light_point = PointAndNormal{vertex.position, vertex.geometry_normal};
-                    int light_id = get_area_light_id(scene.shapes[vertex.shape_id]);
-                    assert(light_id >= 0);
-                    const Light &light = scene.lights[light_id];
-                    
-                    // Compute the pdf of the nee only when at least one nee has been issued
-                    Real pdf_nee = Real(0);
-                    if ( is_nee_issued ) {
-                        // Need to add light_pmf(scene, vertex.shape_id) if
-                        // there is more than 1 light source
-                        // Otherwise, adding it causes an assertion error
-                        pdf_nee = pdf_point_on_light(light, light_point, nee_p_cache, scene);
-                    }
-                    
-
-                    // Next, compute the PDF for sampling the current intersected light point
-                    // using the latest phase function sampling + the all trasmittance sampling
-                    // after the last phase function sampling.
-
-
-                    // The geometry term (=jacobian)
-                    Real jacobian = fabs(dot(-ray.dir, light_point.normal)) / 
-                                    distance_squared(nee_p_cache, light_point.position);
-
-                    Spectrum pdf_phase = dir_pdf * multi_trans_pdf * jacobian;
-
-
-                    // Compute the multi importance sampling between
-                    // the next event estimation and the phase function sampling
-                    Spectrum w = (pdf_phase * pdf_phase) / (pdf_phase * pdf_phase + pdf_nee * pdf_nee);
-
-                    // Add the emission weighted by the multi importance sampling
-                    radiance += current_path_throughput * Le * w;
-
+                // Compute the probability of sampling the current intersected light point
+                // from the point the next event estimation was issued 
+                PointAndNormal light_point = PointAndNormal{vertex.position, vertex.geometry_normal};
+                int light_id = get_area_light_id(scene.shapes[vertex.shape_id]);
+                assert(light_id >= 0);
+                const Light &light = scene.lights[light_id];
+                
+                // Compute the pdf of the nee only when at least one nee has been issued
+                Real pdf_nee = Real(0);
+                if ( is_nee_issued ) {
+                    // Need to add light_pmf(scene, vertex.shape_id) if
+                    // there is more than 1 light source
+                    // Otherwise, adding it causes an assertion error
+                    pdf_nee = pdf_point_on_light(light, light_point, nee_p_cache, scene);
                 }
+                
+
+                // Next, compute the PDF for sampling the current intersected light point
+                // using the latest phase function sampling + the all trasmittance sampling
+                // after the last phase function sampling.
+
+
+                // The geometry term (=jacobian)
+                Real jacobian = fabs(dot(-ray.dir, light_point.normal)) / 
+                                distance_squared(nee_p_cache, light_point.position);
+
+                Spectrum pdf_phase = dir_pdf * multi_trans_pdf * jacobian;
+
+
+                // Compute the multi importance sampling between
+                // the next event estimation and the phase function sampling
+                Spectrum w = (pdf_phase * pdf_phase) / (pdf_phase * pdf_phase + pdf_nee * pdf_nee);
+
+                // Add the emission weighted by the multi importance sampling
+                radiance += current_path_throughput * Le * w;
+
+        
 
             }
             
         }
 
+        // Reached the maximum bounces. Terminate.
         if ( bounces == scene.options.max_depth - 1 && scene.options.max_depth != -1 ) {
-            // reach maximum bounces
             break;
         }
 
 
+        // Hit a index-matchcing surface
         if ( !scatter && vertex_ ) {
             // If the intersected surface is a index-matching surface
             // update the current medium index and 
             // pass through without scattering
             if ( vertex.material_id == -1 ) {
                 current_medium = update_medium(vertex, ray, current_medium);
+
+                // ray = Ray{vertex.position, ray.dir, get_intersection_epsilon(scene), infinity<Real>()};
+
                 bounces++;
                 continue;
             }
         }
 
 
-        if ( scatter ) {
+        if ( scatter && current_medium != -1 ) {
+
+            const Medium media = scene.media[current_medium];
+            Spectrum sigma_s = get_sigma_s(media, vertex.position);
+
+            Spectrum nee = next_event_estimation(scene, 
+                                                rng, 
+                                                ray.org, 
+                                                current_medium, 
+                                                bounces, 
+                                                -ray.dir);
+
+            // return transmittance * sigma_s * nee / trans_pdf;
+            radiance += transmittance * sigma_s * nee / trans_pdf;
+
+            // Record the last position that can issue a next event estimation
+            // NEE is 0 and invalid if it is blocked by something
+            // or does not reach the surface before the bounce limit
+            if ( nee.x > 0 ) {
+                nee_p_cache = ray.org;
+                is_nee_issued = true;
+            }
+
+
             // return current_path_throughput * Spectrum(0,0,1);
             // sample next direct & update path throughput
-            const Medium media = scene.media[current_medium];
             PhaseFunction phase_function = get_phase_function(media);
             const Vector2 phase_uv{next_pcg32_real<Real>(rng), next_pcg32_real<Real>(rng)};
             std::optional<Vector3> next_dir_ = sample_phase_function(phase_function, -ray.dir, phase_uv);
             Vector3 &next_dir = *next_dir_;
 
-            Spectrum sigma_s = get_sigma_s(media, vertex.position);
 
             Real phase_pdf = pdf_sample_phase(phase_function, -ray.dir, next_dir);
 
@@ -754,6 +750,7 @@ Spectrum vol_path_tracing_5(const Scene &scene,
 
 
         if ( current_medium != -1 ) {
+
             
             const Medium media = scene.media[current_medium];
             Spectrum sigma_s = get_sigma_s(media, vertex.position);
@@ -789,11 +786,6 @@ Spectrum vol_path_tracing_5(const Scene &scene,
                 // TODO: need throughput? transmittance?
                 radiance += current_path_throughput * transmittance * sigma_s * nee / trans_pdf;
 
-                // if ( bounces == 2 ) {
-                //     return nee;
-                // } else {
-                //     return make_zero_spectrum();
-                // }
 
                 // Record the last position that can issue a next event estimation
                 // NEE is 0 and invalid if it is blocked by something
@@ -812,6 +804,31 @@ Spectrum vol_path_tracing_5(const Scene &scene,
             // If no intersection, 
             if ( vertex_ ) {
                 ray.org = vertex.position;
+
+                const Medium media = scene.media[current_medium];
+                Spectrum sigma_s = get_sigma_s(media, vertex.position);
+                Spectrum sigma_a = get_sigma_a(media, vertex.position);
+                Spectrum sigma_t = sigma_s + sigma_a;
+
+                Spectrum nee = next_event_estimation(scene, 
+                                                    rng, 
+                                                    vertex.position, 
+                                                    current_medium, 
+                                                    bounces, 
+                                                    -ray.dir);
+
+                // return transmittance * sigma_s * nee / trans_pdf;
+                // TODO: need throughput? transmittance?
+                radiance += current_path_throughput * transmittance * sigma_s * nee / trans_pdf;
+
+
+                // Record the last position that can issue a next event estimation
+                // NEE is 0 and invalid if it is blocked by something
+                // or does not reach the surface before the bounce limit
+                if ( max(nee) > 0 ) {
+                    nee_p_cache = vertex.position;
+                    is_nee_issued = true;
+                }
             }
             else {
                 return make_zero_spectrum();
@@ -919,6 +936,10 @@ Spectrum vol_path_tracing_5(const Scene &scene,
                 Vector3 dir_bsdf = bsdf_sample.dir_out;
 
                 ray.dir = dir_bsdf;
+
+                // if ( bounces > 0 ) {
+                //     return ray.dir;
+                // }
 
                 Spectrum f = eval(mat, dir_view, dir_bsdf, vertex, scene.texture_pool);
                 Real pfd_bsdf = pdf_sample_bsdf(mat, dir_view, dir_bsdf, vertex, scene.texture_pool);
