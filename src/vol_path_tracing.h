@@ -789,10 +789,16 @@ Spectrum vol_path_tracing_5(const Scene &scene,
                 // TODO: need throughput? transmittance?
                 radiance += current_path_throughput * transmittance * sigma_s * nee / trans_pdf;
 
+                // if ( bounces == 2 ) {
+                //     return nee;
+                // } else {
+                //     return make_zero_spectrum();
+                // }
+
                 // Record the last position that can issue a next event estimation
                 // NEE is 0 and invalid if it is blocked by something
                 // or does not reach the surface before the bounce limit
-                if ( nee.x > 0 ) {
+                if ( max(nee) > 0 ) {
                     nee_p_cache = p;
                     is_nee_issued = true;
                 }
@@ -919,7 +925,6 @@ Spectrum vol_path_tracing_5(const Scene &scene,
 
                 current_path_throughput *= f / pfd_bsdf;
 
-                // return current_path_throughput;
             }
         }
 
