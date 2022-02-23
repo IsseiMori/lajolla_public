@@ -339,8 +339,8 @@ Spectrum next_event_estimation(const Scene &scene,
                            Vector3 p, 
                            int current_medium,
                            int bounces,
-                           Vector3 dir_view // previous vertex to current point
-                           ) {
+                           Vector3 dir_view, // previous vertex to current point
+                           PathVertex vertex) {
 
     // Sample a point on light
     // p' (p_prime) is the point on the light source
@@ -362,7 +362,7 @@ Spectrum next_event_estimation(const Scene &scene,
     Spectrum transmittance_light = make_const_spectrum(1);
     Spectrum p_trans_dir = make_const_spectrum(1); // for multiple importance sampling
 
-    PathVertex vertex;
+    PathVertex shadow_vertex;
     Real next_t = Real(0);
 
 
@@ -374,28 +374,28 @@ Spectrum next_event_estimation(const Scene &scene,
                              (1 - get_shadow_epsilon(scene)) *
                              distance(p, p_prime)};
         RayDifferential ray_diff = RayDifferential{Real(0), Real(0)};
-        std::optional<PathVertex> vertex_ = intersect(scene, shadow_ray, ray_diff);
-        vertex = *vertex_;
+        std::optional<PathVertex> shadow_vertex_ = intersect(scene, shadow_ray, ray_diff);
+        shadow_vertex = *shadow_vertex_;
         
 
         // Set the distance to the nearest intersection
         next_t = distance(p, p_prime);
-        if ( vertex_ ) {
-            next_t = distance(p, vertex.position);
+        if ( shadow_vertex_ ) {
+            next_t = distance(p, shadow_vertex.position);
         }
 
         // Account for the transmittance to next_t
         if ( shadow_medium != -1 ) {
             const Medium media = scene.media[shadow_medium];
-            Spectrum sigma_s = get_sigma_s(media, vertex.position);
-            Spectrum sigma_a = get_sigma_a(media, vertex.position);
+            Spectrum sigma_s = get_sigma_s(media, shadow_vertex.position);
+            Spectrum sigma_a = get_sigma_a(media, shadow_vertex.position);
             Spectrum sigma_t = sigma_s + sigma_a;
             
             transmittance_light *= exp(-sigma_t * next_t);
             p_trans_dir *= exp(-sigma_t * next_t);
         }
 
-        if ( !vertex_ ) {
+        if ( !shadow_vertex_ ) {
 
             // Nothing is blocking, we’re done
             break;
@@ -419,7 +419,7 @@ Spectrum next_event_estimation(const Scene &scene,
                 return make_zero_spectrum();
             }
 
-            shadow_medium = update_medium(vertex, shadow_ray, shadow_medium);
+            shadow_medium = update_medium(shadow_vertex, shadow_ray, shadow_medium);
             p = p + next_t * dir_light;
         }
     }
@@ -430,10 +430,7 @@ Spectrum next_event_estimation(const Scene &scene,
         
         // Compute T_light * G * f * L & pdf_nee
 
-        const Medium media = scene.media[shadow_medium];
-        Spectrum sigma_s = get_sigma_s(media, vertex.position);
-        Spectrum sigma_a = get_sigma_a(media, vertex.position);
-        Spectrum sigma_t = sigma_s + sigma_a;
+        const Medium media = scene.media[current_medium];
 
         PhaseFunction phase_function = get_phase_function(media);
         const Vector2 phase_uv{next_pcg32_real<Real>(rng), next_pcg32_real<Real>(rng)};
@@ -441,11 +438,11 @@ Spectrum next_event_estimation(const Scene &scene,
 
         Spectrum Le = emission(light, -dir_light, Real(0), point_on_light, scene);
         
-        Real jacobian = fabs(dot(dir_light, point_on_light.normal)) / 
-                            distance_squared(p, p_prime);
+        Real jacobian = max(-dot(dir_light, point_on_light.normal), Real(0)) / 
+                        distance_squared(p_origin, p_prime);
 
         Real pdf_nee = light_pmf(scene, light_id) *
-                        pdf_point_on_light(light, point_on_light, p, scene);
+                        pdf_point_on_light(light, point_on_light, p_origin, scene);
 
         Spectrum contrib = transmittance_light * rho * Le * jacobian / pdf_nee;
 
@@ -678,6 +675,7 @@ Spectrum vol_path_tracing_4(const Scene &scene,
     Vector2 screen_pos((x + next_pcg32_real<Real>(rng)) / w,
                       (y + next_pcg32_real<Real>(rng)) / h);
     Ray ray = sample_primary(scene.camera, screen_pos);
+    ray.tnear = get_intersection_epsilon(scene);
     RayDifferential ray_diff = RayDifferential{Real(0), Real(0)};
 
     int current_medium = scene.camera.medium_id;
@@ -845,7 +843,8 @@ Spectrum vol_path_tracing_4(const Scene &scene,
                                                 ray.org, 
                                                 current_medium, 
                                                 bounces, 
-                                                -ray.dir);
+                                                -ray.dir,
+                                                vertex);
 
             // return transmittance * sigma_s * nee / trans_pdf;
             radiance += transmittance * sigma_s * nee / trans_pdf;
@@ -1095,7 +1094,8 @@ Spectrum vol_path_tracing_5(const Scene &scene,
                                                 ray.org, 
                                                 current_medium, 
                                                 bounces, 
-                                                -ray.dir);
+                                                -ray.dir,
+                                                vertex);
 
             // return transmittance * sigma_s * nee / trans_pdf;
             radiance += current_path_throughput * sigma_s * nee;
@@ -1139,7 +1139,8 @@ Spectrum vol_path_tracing_5(const Scene &scene,
                                                 ray.org, 
                                                 current_medium, 
                                                 bounces, 
-                                                -ray.dir);
+                                                -ray.dir,
+                                                vertex);
                                                 
 
             // Record the last position that can issue a next event estimation
