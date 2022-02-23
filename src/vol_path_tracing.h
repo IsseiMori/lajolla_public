@@ -719,6 +719,8 @@ Spectrum vol_path_tracing(const Scene &scene,
             // pass through without scattering
             current_medium = update_medium(vertex, ray, current_medium);
 
+            // ray = Ray{vertex.position, ray.dir, get_intersection_epsilon(scene), Real(INFINITY)};
+
             bounces++;
             continue;
         }
