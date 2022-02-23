@@ -617,8 +617,9 @@ Spectrum next_event_estimation_final(const Scene &scene,
         Spectrum evaluated_f = make_zero_spectrum();
 
         Spectrum Le = emission(light, -dir_light, Real(0), point_on_light, scene);
-        Real jacobian = fabs(dot(dir_light, point_on_light.normal)) / 
+        Real jacobian = max(-dot(dir_light, point_on_light.normal), Real(0)) / 
                         distance_squared(p_origin, p_prime);
+
         
         Spectrum pdf_nee = light_pmf(scene, light_id) *
                            pdf_point_on_light(light, point_on_light, p_origin, scene) * 
@@ -1227,7 +1228,7 @@ Spectrum vol_path_tracing(const Scene &scene,
     Vector2 screen_pos((x + next_pcg32_real<Real>(rng)) / w,
                       (y + next_pcg32_real<Real>(rng)) / h);
     Ray ray = sample_primary(scene.camera, screen_pos);
-    // ray.tnear = get_intersection_epsilon(scene);
+    ray.tnear = get_intersection_epsilon(scene);
     RayDifferential ray_diff = RayDifferential{Real(0), Real(0)};
 
     int current_medium = scene.camera.medium_id;
@@ -1382,13 +1383,10 @@ Spectrum vol_path_tracing(const Scene &scene,
                 const Light &light = scene.lights[light_id];
                 
                 // Compute the pdf of the nee only when at least one nee has been issued
-                Spectrum pdf_nee = make_zero_spectrum();
-                if ( is_nee_issued ) {
-                    // Need to add light_pmf(scene, vertex.shape_id) if
-                    // there is more than 1 light source
-                    // Otherwise, adding it causes an assertion error
-                    pdf_nee = pdf_point_on_light(light, light_point, nee_p_cache, scene) * trans_nee_pdf;
-                }
+                // TODO: use is_nee_issued condition if error
+                Spectrum pdf_nee = light_pmf(scene, light_id) *
+                                   pdf_point_on_light(light, light_point, nee_p_cache, scene) * 
+                                   trans_nee_pdf;
                 
 
                 // Next, compute the PDF for sampling the current intersected light point
@@ -1397,7 +1395,7 @@ Spectrum vol_path_tracing(const Scene &scene,
 
 
                 // The geometry term (=jacobian)
-                Real jacobian = fabs(dot(-ray.dir, light_point.normal)) / 
+                Real jacobian = max(-dot(-ray.dir, light_point.normal), Real(0)) /
                                 distance_squared(nee_p_cache, light_point.position);
 
                 Spectrum pdf_phase = dir_pdf * multi_trans_pdf * jacobian;
@@ -1409,8 +1407,6 @@ Spectrum vol_path_tracing(const Scene &scene,
 
                 // Add the emission weighted by the multi importance sampling
                 radiance += current_path_throughput * Le * w;
-
-        
 
             }
             
@@ -1461,8 +1457,10 @@ Spectrum vol_path_tracing(const Scene &scene,
             // Record the last position that can issue a next event estimation
             // NEE is 0 and invalid if it is blocked by something
             // or does not reach the surface before the bounce limit
-            nee_p_cache = ray.org;
-            is_nee_issued = true;
+            if ( max(nee) > 0 ) {
+                nee_p_cache = ray.org;
+                is_nee_issued = true;
+            }
 
 
             // return current_path_throughput * Spectrum(0,0,1);
@@ -1507,8 +1505,10 @@ Spectrum vol_path_tracing(const Scene &scene,
             // Record the last position that can issue a next event estimation
             // NEE is 0 and invalid if it is blocked by something
             // or does not reach the surface before the bounce limit
-            nee_p_cache = ray.org;
-            is_nee_issued = true;
+            if ( max(nee) > 0 ) {
+                nee_p_cache = ray.org;
+                is_nee_issued = true;
+            }
 
 
 
