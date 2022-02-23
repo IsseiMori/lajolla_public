@@ -1249,6 +1249,11 @@ Spectrum vol_path_tracing(const Scene &scene,
 
     Real eta_scale = Real(1);
 
+
+    // if ( !(x > 400 && x < 404) ) {
+    //     return Spectrum(0,0,1);
+    // }
+
     while ( true ) {
         
         bool scatter = false;
@@ -1268,7 +1273,6 @@ Spectrum vol_path_tracing(const Scene &scene,
             
             const Medium media = scene.media[current_medium];
             Spectrum majorant = get_majorant(media, ray);
-
 
             
             Real u = next_pcg32_real<Real>(rng);
@@ -1352,6 +1356,16 @@ Spectrum vol_path_tracing(const Scene &scene,
             }
         }
 
+        // if ( bounces > 0 )
+        //     return ray.org;
+        
+        // std::cout << bounces << std::endl;
+        
+        // if ( x == 200 && y == 200 ) {
+        //     std::cout << bounces << std::endl;
+        // }
+
+
 
         current_path_throughput *= transmittance / average(trans_dir_pdf);
 
@@ -1412,26 +1426,24 @@ Spectrum vol_path_tracing(const Scene &scene,
             
         }
 
-        // Reached the maximum bounces. Terminate.
-        if ( bounces == scene.options.max_depth - 1 && scene.options.max_depth != -1 ) {
-            break;
-        }
 
 
         // Hit a index-matchcing surface
-        if ( !scatter && vertex_ ) {
+        if ( !scatter && vertex_ && vertex.material_id == -1 ) {
             // If the intersected surface is a index-matching surface
             // update the current medium index and 
             // pass through without scattering
-            if ( vertex.material_id == -1 ) {
-                current_medium = update_medium(vertex, ray, current_medium);
+            current_medium = update_medium(vertex, ray, current_medium);
 
-                // return Spectrum(0,1,0);
-
-                bounces++;
-                continue;
-            }
+            bounces++;
+            continue;
         }
+
+        // Reached the maximum bounces. Terminate.
+        if ( bounces >= scene.options.max_depth - 1 && scene.options.max_depth != -1 ) {
+            break;
+        }
+
 
 
         if ( scatter && current_medium != -1 ) {
@@ -1453,6 +1465,7 @@ Spectrum vol_path_tracing(const Scene &scene,
                                                 vertex);
 
             radiance += current_path_throughput * sigma_s * nee;
+
 
             // Record the last position that can issue a next event estimation
             // NEE is 0 and invalid if it is blocked by something
@@ -1554,7 +1567,7 @@ Spectrum vol_path_tracing(const Scene &scene,
         Real rr_prob = Real(1);
         if ( bounces >= scene.options.rr_depth ) {
             // TODO: choosing R channel for now
-            rr_prob = min(average(current_path_throughput), 0.95);
+            rr_prob = min(max((1 / eta_scale) * current_path_throughput), Real(0.95));
             Real u = next_pcg32_real<Real>(rng);
             if ( u > rr_prob ) {
                 break;
@@ -1565,6 +1578,10 @@ Spectrum vol_path_tracing(const Scene &scene,
         }
 
         bounces++;
+
+        // TODO: is this correct?
+        current_path_throughput *= rr_prob;
+
     }
 
     return radiance;
