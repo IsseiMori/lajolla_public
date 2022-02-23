@@ -353,7 +353,7 @@ Spectrum next_event_estimation_final(const Scene &scene,
         // Account for the transmittance to next_t
         if ( shadow_medium != -1 ) {
 
-            const Medium media = scene.media[shadow_medium];
+            const Medium &media = scene.media[shadow_medium];
             Spectrum majorant = get_majorant(media, shadow_ray);
 
             Real u = next_pcg32_real<Real>(rng);
@@ -473,7 +473,7 @@ Spectrum next_event_estimation_final(const Scene &scene,
         }
         else {
 
-            const Medium media = scene.media[current_medium];
+            const Medium &media = scene.media[current_medium];
 
             PhaseFunction phase_function = get_phase_function(media);
             const Vector2 phase_uv{next_pcg32_real<Real>(rng), next_pcg32_real<Real>(rng)};
@@ -553,7 +553,7 @@ Spectrum vol_path_tracing(const Scene &scene,
 
         if ( current_medium != -1 ) {
             
-            const Medium media = scene.media[current_medium];
+            const Medium &media = scene.media[current_medium];
             Spectrum majorant = get_majorant(media, ray);
 
             
@@ -719,11 +719,12 @@ Spectrum vol_path_tracing(const Scene &scene,
             // pass through without scattering
             current_medium = update_medium(vertex, ray, current_medium);
 
-            // ray = Ray{vertex.position, ray.dir, get_intersection_epsilon(scene), Real(INFINITY)};
+            ray.org = vertex.position;
 
             bounces++;
             continue;
         }
+
 
         // Reached the maximum bounces. Terminate.
         if ( bounces >= scene.options.max_depth - 1 && scene.options.max_depth != -1 ) {
@@ -733,12 +734,9 @@ Spectrum vol_path_tracing(const Scene &scene,
 
 
         if ( scatter && current_medium != -1 ) {
-
-            // if ( vertex_ ) return Spectrum(0,10,0);
-            // else return Spectrum(0,0,1);
             
 
-            const Medium media = scene.media[current_medium];
+            const Medium &media = scene.media[current_medium];
             Spectrum sigma_s = get_sigma_s(media, ray.org);
 
             Spectrum nee = next_event_estimation_final(scene, 
