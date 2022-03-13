@@ -48,9 +48,18 @@ struct TriangleMesh : public ShapeBase {
     TableDist1D triangle_sampler;
 };
 
+enum class CurveType { Flat, Cylinder, Ribbon };
+struct BezierCurve : public ShapeBase {
+    std::vector<Vector3> points;
+    Real width0;
+    Real width1;
+    CurveType type;
+};
+
+
 // To add more shapes, first create a struct for the shape, add it to the variant below,
 // then implement all the relevant functions below.
-using Shape = std::variant<Sphere, TriangleMesh>;
+using Shape = std::variant<Sphere, TriangleMesh, BezierCurve>;
 
 /// Add the shape to an Embree scene.
 uint32_t register_embree(const Shape &shape, const RTCDevice &device, const RTCScene &scene);
