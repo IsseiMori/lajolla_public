@@ -50,9 +50,9 @@ struct TriangleMesh : public ShapeBase {
 
 enum class CurveType { Flat, Cylinder, Ribbon };
 struct BezierCurve : public ShapeBase {
-    std::vector<Vector3> points;
-    Real width0;
-    Real width1;
+    Vector3 points[4];
+    Real width[2];
+    Vector3 normals[2];
     CurveType type;
 };
 
