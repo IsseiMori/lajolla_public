@@ -21,7 +21,7 @@ uint32_t register_embree_op::operator()(const BezierCurve &curve) const {
 
     // dummy indices
     for (int i = 0; i < curve.num; i++) {
-        curves[i] = i;
+        curves[i] = i * 4;
     }
     rtcSetGeometryVertexAttributeCount(rtc_geom, 1);
     rtcCommitGeometry(rtc_geom);
