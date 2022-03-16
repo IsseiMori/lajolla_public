@@ -872,7 +872,7 @@ Shape parse_shape(pugi::xml_node node,
                 Error(std::string("Unrecognized medium name: ") + name_value);
             }
             media.push_back(m);
-        }
+        } 
     }
 
     Shape shape;
@@ -923,6 +923,17 @@ Shape parse_shape(pugi::xml_node node,
             }
         }
         shape = Sphere{{}, center, radius};
+    } else if (type == "hair") {
+        // TODO: read in file
+        for (auto child : node.children()) {
+            std::string name = child.attribute("name").value();
+            if (name == "filename") {
+                filename = child.attribute("value").value();
+            } else if (name == "radius") {
+                // pbrt has 2 radius but mitusba only has 1
+            }
+        }
+        shape = BezierCurve{{}, };
     } else {
         Error(std::string("Unknown shape:") + type);
     }
