@@ -20,7 +20,7 @@ uint32_t register_embree_op::operator()(const BezierCurve &curve) const {
     }
 
     // dummy indices
-    for (int i = 0; i < (int)curve.points.size(); i++) {
+    for (int i = 0; i < curve.num; i++) {
         curves[i] = i;
     }
     rtcSetGeometryVertexAttributeCount(rtc_geom, 1);
