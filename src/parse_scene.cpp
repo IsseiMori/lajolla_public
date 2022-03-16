@@ -2,6 +2,7 @@
 #include "3rdparty/pugixml.hpp"
 #include "flexception.h"
 #include "load_serialized.h"
+#include "load_hair.h"
 #include "parse_obj.h"
 #include "transform.h"
 #include <cctype>
@@ -925,15 +926,18 @@ Shape parse_shape(pugi::xml_node node,
         shape = Sphere{{}, center, radius};
     } else if (type == "hair") {
         // TODO: read in file
+        std::string filename;
+        Real radius = 1;
         for (auto child : node.children()) {
             std::string name = child.attribute("name").value();
             if (name == "filename") {
                 filename = child.attribute("value").value();
             } else if (name == "radius") {
                 // pbrt has 2 radius but mitusba only has 1
+                radius = std::stof(child.attribute("value").value());
             }
         }
-        shape = BezierCurve{{}, };
+        shape = load_hair(filename, radius);
     } else {
         Error(std::string("Unknown shape:") + type);
     }

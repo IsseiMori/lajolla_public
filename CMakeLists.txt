@@ -55,6 +55,7 @@ set(SRCS src/3rdparty/miniz.h
          src/lajolla.h
          src/light.h
          src/load_serialized.h
+         src/load_hair.h
          src/material.h
          src/matrix.h
          src/medium.h
@@ -83,6 +84,7 @@ set(SRCS src/3rdparty/miniz.h
          src/intersection.cpp
          src/light.cpp
          src/load_serialized.cpp
+         src/load_hair.cpp
          src/material.cpp
          src/medium.cpp
          src/parallel.cpp

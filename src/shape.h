@@ -48,13 +48,13 @@ struct TriangleMesh : public ShapeBase {
     TableDist1D triangle_sampler;
 };
 
-enum class CurveType { Flat, Cylinder, Ribbon };
+// enum class CurveType { Flat, Cylinder, Ribbon };
 struct BezierCurve : public ShapeBase {
     std::vector<Vector3> points; // consist of multiple curve
-    std::vector<Real> width;
-    std::vector<Vector3> normals; // only for Ribbon
-    std::vector<CurveType> type;
-    std::vector<int> num; // number of curves
+    Real radius;
+    // std::vector<Vector3> normals; // only for Ribbon
+    // std::vector<CurveType> type; // not used
+    int num; // number of curves
 };
 
 
