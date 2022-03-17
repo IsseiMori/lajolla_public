@@ -804,14 +804,33 @@ std::tuple<std::string /* ID */, Material> parse_bsdf(
                                               clearcoat_gloss,
                                               eta});
     }  else if (type == "hairbsdf") {
-        Texture<Spectrum> base_color = make_constant_spectrum_texture(fromRGB(Vector3{0.5, 0.5, 0.5}));
+        Real eta = Real(1.55);
+        Spectrum sigma_a = make_zero_spectrum();
+        Real beta_m = Real(0);
+        Real beta_n = Real(0);
+        Real alpha = Real(0);
         for (auto child : node.children()) {
             std::string name = child.attribute("name").value();
-            if (name == "baseColor") {
-                base_color = parse_spectrum_texture(child, texture_map, texture_pool);
+            if (name == "eta") {
+                eta = std::stof(child.attribute("value").value());
+            } else if (name == "sigma_a") {
+                sigma_a = Spectrum{
+                            child.attribute("value").value()[0],
+                            child.attribute("value").value()[1],
+                            child.attribute("value").value()[2]};
+            } else if (name == "beta_m") {
+                beta_m = std::stof(child.attribute("value").value());
+            } else if (name == "beta_n") {
+                beta_n = std::stof(child.attribute("value").value());
+            } else if (name == "alpha") {
+                alpha = std::stof(child.attribute("value").value());
             }
         }
-        return std::make_tuple(id, HairBSDF{base_color});
+        return std::make_tuple(id, HairBSDF{eta,
+                                            sigma_a,
+                                            beta_m,
+                                            beta_n,
+                                            alpha});
     } else {
         Error(std::string("Unknown BSDF: ") + type);
     }

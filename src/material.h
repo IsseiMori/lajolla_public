@@ -99,7 +99,11 @@ struct DisneyBSDF {
 
 /// Hair BSDF
 struct HairBSDF {
-    Texture<Spectrum> base_color;
+    Real eta; // The index of refraction of the interior of the hair. (Typically, 1.55).
+    Spectrum sigma_a; // The absorption coefficient of the hair interior, where distance is measured with respect to the hair cylinder’s diameter.
+    Real beta_m; // The longitudinal roughness of the hair, mapped to the range [0, 1].
+    Real beta_n; // The azimuthal roughness, also mapped to [0, 1].
+    Real alpha; // The angle that the small scales on the surface of hair are offset from the base cylinder, expressed in degrees.
 };
 
 // To add more materials, first create a struct for the material, then overload the () operators for all the
