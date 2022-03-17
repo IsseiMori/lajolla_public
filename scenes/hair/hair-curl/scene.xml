@@ -11,11 +11,11 @@
 			<matrix value="-1 4.24672e-010 1.50958e-007 -0.055286 1.11022e-016 0.999996 -0.00281317 5.92976 -1.50959e-007 -0.00281317 -0.999996 17.0651 0 0 0 1"/>
 		</transform>
 		<sampler type="sobol" >
-			<integer name="sampleCount" value="64" />
+			<integer name="sampleCount" value="1" />
 		</sampler>
 		<film type="ldrfilm" >
-			<integer name="width" value="1200" />
-			<integer name="height" value="1000" />
+			<integer name="width" value="600" />
+			<integer name="height" value="500" />
 			<string name="fileFormat" value="png" />
 			<string name="pixelFormat" value="rgb" />
 			<float name="gamma" value="2.2" />
@@ -60,7 +60,7 @@
 		<string name="filename" value="models/black_hair.mitshair" />
 		<ref id="black_hair" />
 	</shape>
-	<shape type="hair" >
+	<!-- <shape type="hair" >
 		<float name="radius" value="0.000444" />
 		<string name="filename" value="models/red_hair.mitshair" />
 		<ref id="red_hair" />
@@ -74,12 +74,22 @@
 		<float name="radius" value="0.000444" />
 		<string name="filename" value="models/blonde_hair.mitshair" />
 		<ref id="blonde_hair" />
-	</shape>
-	<emitter type="sunsky" >
+	</shape> -->
+	<!-- <emitter type="sunsky" >
 		<float name="turbidity" value="3" />
 		<vector name="sunDirection" x="-0.376047" y="0.758426" z="0.532333" />
 		<float name="skyScale" value="5" />
 		<float name="sunScale" value="19.0912" />
 		<float name="sunRadiusScale" value="37.9165" />
+	</emitter> -->
+	<emitter type="envmap" id="Area_002-light">
+		<string name="filename" value="../../matpreview/envmap.exr"/>
+		<transform name="toWorld">
+			<rotate z="1" angle="90"/>
+			<rotate x="1" angle="-90"/>
+			<rotate y="1" angle="10"/>
+			<matrix value="-0.224951 -0.000001 -0.974370 0.000000 -0.974370 0.000000 0.224951 0.000000 0.000000 1.000000 -0.000001 8.870000 0.000000 0.000000 0.000000 1.000000 "/>
+		</transform>
+		<float name="scale" value="3"/>
 	</emitter>
 </scene>
