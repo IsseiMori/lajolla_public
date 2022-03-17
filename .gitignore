@@ -45,3 +45,5 @@ build/
 
 #vscode related
 .vscode
+
+.DS_Store
