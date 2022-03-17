@@ -3,10 +3,11 @@
 #include <iostream>
 
 
-// BezierCurve load_hair_pbrt(const fs::path &filename) {
+// BezierCurve load_hair(const fs::path &filename, float radius) {
 //     std::fstream fs(filename.c_str(), std::fstream::in);
 //     std::string line;
 //     BezierCurve curve;
+//     curve.radius = radius;
 //     while (std::getline(fs, line))
 //     {
 //         std::string token;
@@ -27,10 +28,6 @@
 //         curve.points.push_back(Vector3{std::stof(token_list[13]), std::stof(token_list[14]), std::stof(token_list[15])});
 //         curve.points.push_back(Vector3{std::stof(token_list[16]), std::stof(token_list[17]), std::stof(token_list[18])});
 //         curve.points.push_back(Vector3{std::stof(token_list[19]), std::stof(token_list[20]), std::stof(token_list[21])});
-
-//         // width
-//         curve.width.push_back(std::stof(token_list[26]));
-//         curve.width.push_back(std::stof(token_list[31]));
 //     }
 //     curve.num = curve.points.size() / 4;
 //     std::cout << curve.num << "\n";
