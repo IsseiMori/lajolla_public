@@ -1,0 +1,49 @@
+#include "../microfacet.h"
+
+Spectrum eval_op::operator()(const HairBSDF &bsdf) const {
+    bool reflect = dot(vertex.geometry_normal, dir_in) *
+                   dot(vertex.geometry_normal, dir_out) > 0;
+    // Flip the shading frame if it is inconsistent with the geometry normal
+    Frame frame = vertex.shading_frame;
+    if (dot(frame.n, dir_in) * dot(vertex.geometry_normal, dir_in) < 0) {
+        frame = -frame;
+    }
+    // Homework 1: implement this!
+    (void)reflect; // silence unuse warning, remove this when implementing hw
+
+    // return Spectrum(1, 0, 0);
+
+    return make_zero_spectrum();
+}
+
+Real pdf_sample_bsdf_op::operator()(const HairBSDF &bsdf) const {
+    bool reflect = dot(vertex.geometry_normal, dir_in) *
+                   dot(vertex.geometry_normal, dir_out) > 0;
+    // Flip the shading frame if it is inconsistent with the geometry normal
+    Frame frame = vertex.shading_frame;
+    if (dot(frame.n, dir_in) * dot(vertex.geometry_normal, dir_in) < 0) {
+        frame = -frame;
+    }
+    // Homework 1: implement this!
+    (void)reflect; // silence unuse warning, remove this when implementing hw
+
+    // return 1;
+
+    return 0;
+}
+
+std::optional<BSDFSampleRecord>
+        sample_bsdf_op::operator()(const HairBSDF &bsdf) const {
+    // Flip the shading frame if it is inconsistent with the geometry normal
+    Frame frame = vertex.shading_frame;
+    if (dot(frame.n, dir_in) * dot(vertex.geometry_normal, dir_in) < 0) {
+        frame = -frame;
+    }
+    // Homework 1: implement this!
+
+    return {};
+}
+
+TextureSpectrum get_texture_op::operator()(const HairBSDF &bsdf) const {
+    return bsdf.base_color;
+}
