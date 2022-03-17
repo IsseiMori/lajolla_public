@@ -23,7 +23,7 @@
 			<rfilter type="tent" />
 		</film>
 	</sensor>
-	<bsdf type="roughplastic" id="black_hair" >
+	<bsdf type="hairbsdf" id="black_hair" >
 		<float name="alpha" value="0.3" />
 		<string name="distribution" value="ggx" />
 		<float name="intIOR" value="1.55" />
@@ -31,6 +31,14 @@
 		<boolean name="nonlinear" value="false" />
 		<rgb name="diffuseReflectance" value="6.344e-006, 7.62186e-012, 6.53751e-030"/>
 	</bsdf>
+	<!-- <bsdf type="roughplastic" id="black_hair" >
+		<float name="alpha" value="0.3" />
+		<string name="distribution" value="ggx" />
+		<float name="intIOR" value="1.55" />
+		<float name="extIOR" value="1" />
+		<boolean name="nonlinear" value="false" />
+		<rgb name="diffuseReflectance" value="6.344e-006, 7.62186e-012, 6.53751e-030"/>
+	</bsdf> -->
 	<bsdf type="roughplastic" id="red_hair" >
 		<float name="alpha" value="0.3" />
 		<string name="distribution" value="ggx" />

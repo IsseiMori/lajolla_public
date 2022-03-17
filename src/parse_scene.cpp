@@ -803,6 +803,15 @@ std::tuple<std::string /* ID */, Material> parse_bsdf(
                                               clearcoat,
                                               clearcoat_gloss,
                                               eta});
+    }  else if (type == "hairbsdf") {
+        Texture<Spectrum> base_color = make_constant_spectrum_texture(fromRGB(Vector3{0.5, 0.5, 0.5}));
+        for (auto child : node.children()) {
+            std::string name = child.attribute("name").value();
+            if (name == "baseColor") {
+                base_color = parse_spectrum_texture(child, texture_map, texture_pool);
+            }
+        }
+        return std::make_tuple(id, HairBSDF{base_color});
     } else {
         Error(std::string("Unknown BSDF: ") + type);
     }
