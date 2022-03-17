@@ -18,7 +18,7 @@ uint32_t register_embree_op::operator()(const BezierCurve &curve) const {
     // vertex
     for (int i = 0; i < curve.points.size(); i++) {
         Vector3 point = curve.points[i];
-        points[i] = Vector4f{(float)point[0], (float)point[1], (float)point[2], 0.f};
+        points[i] = Vector4f{(float)point[0], (float)point[1], (float)point[2], curve.radius};
     }
     
     // indices pointing to first control vertex
