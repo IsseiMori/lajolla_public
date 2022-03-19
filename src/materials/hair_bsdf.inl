@@ -194,10 +194,13 @@ Spectrum eval_op::operator()(const HairBSDF &bsdf) const {
     // Homework 1: implement this!
     (void)reflect; // silence unuse warning, remove this when implementing hw
 
+    // return Spectrum(0.1, 0.06, 0.03);
+    return Spectrum(0.8, 0.8, 0.8);
 
     // Get the parameterized positions 
-    Real u = vertex.st.x; // u=[0,1] along the curve
-    Real v = Real(0.5); //vertex.st.y; // v=[0,1] along the width of the tube, should be 0 for RTC_GEOMETRY_TYPE_ROUND_BEZIER_CURVE but not
+    // Real u = vertex.st.x; // u=[0,1] along the curve
+    Real v = vertex.st.x * 10 - int(vertex.st.x * 10);
+    // Real v = vertex.st.y; // v=[0,1] along the width of the tube, should be 0 for RTC_GEOMETRY_TYPE_ROUND_BEZIER_CURVE but not
     Real h = Real(-1) + Real(2) * v; // h=[-1, 1] point on the diameter of the intersection circle
     Real gammaO = SafeASin(h);
 
@@ -299,8 +302,11 @@ Real pdf_sample_bsdf_op::operator()(const HairBSDF &bsdf) const {
     // Homework 1: implement this!
     (void)reflect; // silence unuse warning, remove this when implementing hw
 
+    return Real(1);
+
     // Get the parameterized positions 
-    Real v = vertex.st.y; // v=[0,1] along the width of the tube, should be 0 for RTC_GEOMETRY_TYPE_ROUND_BEZIER_CURVE but not
+    Real v = vertex.st.x * 10 - int(vertex.st.x * 10);
+    // Real v = vertex.st.y; // v=[0,1] along the width of the tube, should be 0 for RTC_GEOMETRY_TYPE_ROUND_BEZIER_CURVE but not
     Real h = Real(-1) + Real(2) * v; // h=[-1, 1] point on the diameter of the intersection circle
 
 
@@ -374,7 +380,6 @@ Real pdf_sample_bsdf_op::operator()(const HairBSDF &bsdf) const {
     pdf += Mp(cosThetaI, cosThetaO, sinThetaI, sinThetaO, longitudinal_v[pMax]) *
            apPdf[pMax] * (1 / (2 * c_PI));
 
-    // return Real(1);
     return pdf;
 
 }
@@ -390,8 +395,20 @@ std::optional<BSDFSampleRecord>
     }
     // Homework 1: implement this!
 
+    Real theta = 2 * c_PI * rnd_param_uv[0];
+    Real phi = c_PI * rnd_param_uv[1];
+    Real x = sin(phi) * cos(theta);
+    Real y = sin(phi) * sin(theta);
+    Real z = cos(phi);
+
+    return BSDFSampleRecord{
+        Vector3(x, abs(y), z),
+        // to_world(frame, sample_cos_hemisphere(rnd_param_uv)),
+        Real(0) /* eta */, Real(1) /* roughness */};
+
     // Get the parameterized positions 
-    Real v = vertex.st.y; // v=[0,1] along the width of the tube, should be 0 for RTC_GEOMETRY_TYPE_ROUND_BEZIER_CURVE but not
+    Real v = vertex.st.x * 10 - int(vertex.st.x * 10);
+    // Real v = vertex.st.y; // v=[0,1] along the width of the tube, should be 0 for RTC_GEOMETRY_TYPE_ROUND_BEZIER_CURVE but not
     Real h = Real(-1) + Real(2) * v; // h=[-1, 1] point on the diameter of the intersection circle
 
 
@@ -510,9 +527,11 @@ std::optional<BSDFSampleRecord>
     pdf += Mp(cosThetaI, cosThetaO, sinThetaI, sinThetaO, longitudinal_v[pMax]) *
             apPdf[pMax] * (1 / (2 * c_PI));
     
+    
     return BSDFSampleRecord{
         dir_out,
         Real(0) /* eta */, Real(1) /* roughness */};
+    
 }
 
 TextureSpectrum get_texture_op::operator()(const HairBSDF &bsdf) const {

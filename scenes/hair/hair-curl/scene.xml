@@ -11,7 +11,7 @@
 			<matrix value="-1 4.24672e-010 1.50958e-007 -0.055286 1.11022e-016 0.999996 -0.00281317 5.92976 -1.50959e-007 -0.00281317 -0.999996 17.0651 0 0 0 1"/>
 		</transform>
 		<sampler type="sobol" >
-			<integer name="sampleCount" value="128" />
+			<integer name="sampleCount" value="64" />
 		</sampler>
 		<film type="ldrfilm" >
 			<integer name="width" value="600" />
@@ -25,8 +25,8 @@
 	</sensor>
 	<bsdf type="hairbsdf" id="black_hair" >
 		<float name="eta" value="1.55"/>
-		<!-- <rgb name="sigma_a" value="0.06 0.1 0.2"/>   -->
-		<rgb name="sigma_a" value="0.84 1.39 2.74"/>
+		<rgb name="sigma_a" value="0.06 0.1 0.2"/>  
+		<!-- <rgb name="sigma_a" value="0.84 1.39 2.74"/> -->
 		<float name="beta_m" value="0.125"/>
 		<float name="beta_n" value="0.3"/>
 		<float name="alpha" value="2"/>
@@ -65,7 +65,7 @@
 	</bsdf>
 	<shape type="hair" >
 		<float name="radius" value="0.000444" />
-		<string name="filename" value="models/black_hair.pbrt" />
+		<string name="filename" value="models/hair.pbrt" />
 		<ref id="black_hair" />
 	</shape>
 	<!-- <shape type="hair" >
